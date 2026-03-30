@@ -78,6 +78,8 @@ namespace NextHorizon.Controllers
         }
 
         // ── CONVERSATIONS ─────────────────────────────────────────
+        // SupportFAQs is the real conversation table.
+        // SupportMessages.ConversationId → SupportFAQs.Id
 
         [HttpGet]
         public async Task<IActionResult> GetConversations()
@@ -86,15 +88,19 @@ namespace NextHorizon.Controllers
             if (userId == 0)
                 return Json(new { success = false, message = "Not logged in." });
 
-            var conversations = await _context.SupportConversations
-                .Where(c => c.AgentId == userId)
-                .OrderByDescending(c => c.CreatedAt)
-                .Select(c => new {
-                    c.Id,
-                    c.SellerId,
-                    c.AgentId,
-                    c.Status,
-                    c.CreatedAt
+            // Pull conversations assigned to this agent OR unassigned (agent can claim)
+            var conversations = await _context.SupportFAQs
+                .Where(f => f.AgentId == userId || f.AgentId == null)
+                .OrderByDescending(f => f.CreatedAt)
+                .Select(f => new {
+                    id = f.Id,
+                    category = f.Category,
+                    question = f.Question,
+                    status = f.Status,
+                    userType = f.UserType,
+                    agentId = f.AgentId,
+                    createdAt = f.CreatedAt,
+                    isAssigned = f.AgentId == userId
                 })
                 .ToListAsync();
 
@@ -108,12 +114,13 @@ namespace NextHorizon.Controllers
             if (userId == 0)
                 return Json(new { success = false, message = "Not logged in." });
 
-            // Verify this conversation belongs to this agent
-            var conversation = await _context.SupportConversations
-                .FirstOrDefaultAsync(c => c.Id == conversationId && c.AgentId == userId);
+            // Allow access if assigned to this agent OR unassigned
+            var conversation = await _context.SupportFAQs
+                .FirstOrDefaultAsync(f => f.Id == conversationId &&
+                    (f.AgentId == userId || f.AgentId == null));
 
             if (conversation == null)
-                return Json(new { success = false, message = "Conversation not found." });
+                return Json(new { success = false, message = "Conversation not found or not assigned to you." });
 
             var messages = await _context.SupportMessages
                 .Where(m => m.ConversationId == conversationId)
@@ -131,6 +138,27 @@ namespace NextHorizon.Controllers
             return Json(new { success = true, messages });
         }
 
+        // Claim an unassigned conversation
+        [HttpPost]
+        public async Task<IActionResult> ClaimConversation([FromBody] ClaimConversationRequest model)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId") ?? 0;
+            if (userId == 0)
+                return Json(new { success = false, message = "Not logged in." });
+
+            var conversation = await _context.SupportFAQs
+                .FirstOrDefaultAsync(f => f.Id == model.ConversationId && f.AgentId == null);
+
+            if (conversation == null)
+                return Json(new { success = false, message = "Conversation not found or already claimed." });
+
+            conversation.AgentId = userId;
+            conversation.StartTime = DateTime.Now;
+            await _context.SaveChangesAsync();
+
+            return Json(new { success = true, conversationId = model.ConversationId });
+        }
+
         [HttpPost]
         public async Task<IActionResult> SendMessage([FromBody] SendMessageRequest model)
         {
@@ -141,12 +169,20 @@ namespace NextHorizon.Controllers
             if (model == null || model.ConversationId <= 0 || string.IsNullOrWhiteSpace(model.MessageText))
                 return BadRequest(new { success = false, message = "Invalid request." });
 
-            // Verify this conversation belongs to this agent
-            var conversation = await _context.SupportConversations
-                .FirstOrDefaultAsync(c => c.Id == model.ConversationId && c.AgentId == userId);
+            // Allow send if assigned to this agent OR unassigned (will auto-claim)
+            var conversation = await _context.SupportFAQs
+                .FirstOrDefaultAsync(f => f.Id == model.ConversationId &&
+                    (f.AgentId == userId || f.AgentId == null));
 
             if (conversation == null)
-                return Json(new { success = false, message = "Conversation not found." });
+                return Json(new { success = false, message = "Conversation not found or not assigned to you." });
+
+            // Auto-claim if unassigned
+            if (conversation.AgentId == null)
+            {
+                conversation.AgentId = userId;
+                conversation.StartTime = DateTime.Now;
+            }
 
             var message = new SupportMessage
             {
@@ -170,6 +206,27 @@ namespace NextHorizon.Controllers
                 messageText = message.MessageText,
                 createdAt = message.CreatedAt
             });
+        }
+
+        // Resolve a conversation
+        [HttpPost]
+        public async Task<IActionResult> ResolveConversation([FromBody] ClaimConversationRequest model)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId") ?? 0;
+            if (userId == 0)
+                return Json(new { success = false, message = "Not logged in." });
+
+            var conversation = await _context.SupportFAQs
+                .FirstOrDefaultAsync(f => f.Id == model.ConversationId && f.AgentId == userId);
+
+            if (conversation == null)
+                return Json(new { success = false, message = "Conversation not found." });
+
+            conversation.Status = "Resolved";
+            conversation.EndTime = DateTime.Now;
+            await _context.SaveChangesAsync();
+
+            return Json(new { success = true, conversationId = model.ConversationId });
         }
 
         // ── AGENT STATUS ──────────────────────────────────────────
@@ -232,5 +289,10 @@ namespace NextHorizon.Controllers
     {
         public int ConversationId { get; set; }
         public string MessageText { get; set; } = string.Empty;
+    }
+
+    public class ClaimConversationRequest
+    {
+        public int ConversationId { get; set; }
     }
 }

@@ -1,31 +1,19 @@
-﻿@*
-=============================================================
-  AGENT HELP CENTER
-=============================================================
-*@
-
-@{
+﻿@{
     Layout = "_AgentLayout";
     ViewData["Title"] = "Agent Portal - Help Center";
-  var agentName = ViewBag.AgentName as string ?? "Agent";
-if (string.IsNullOrWhiteSpace(agentName)) agentName = "Agent";
-var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, StringSplitOptions.RemoveEmptyEntries).Select(w => w[0].ToString())).ToUpper();
+    var agentName = ViewBag.AgentName as string ?? "Agent";
+    var agentInitials = string.Join("", agentName.Split(' ').Select(w => w[0].ToString())).ToUpper();
+    var userId = ViewBag.UserId as int? ?? 0;
 }
 
 @section Styles {
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
 <style>
-
-/* ── strip layout padding ───────────────────────────────────── */
 .page-content, .main-content, .content-wrapper, main {
     padding: 0 !important;
     overflow: hidden !important;
 }
-
-/* ═══════════════════════════════════════════════════
-   ROOT  — 3-column flex shell
-═══════════════════════════════════════════════════ */
 .hc-shell {
     display: flex;
     width: 100%;
@@ -35,62 +23,28 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     background: #f4f6f8;
     color: #1a1a2e;
 }
-
-.hc-shell.resizing,
-.hc-shell.resizing * {
+.hc-shell.resizing, .hc-shell.resizing * {
     cursor: col-resize !important;
     user-select: none !important;
 }
-
 .hc-resizer {
-    width: 8px;
-    flex-shrink: 0;
+    width: 8px; flex-shrink: 0;
     background: #eef0f3;
     border-left: 1px solid #e3e6ea;
     border-right: 1px solid #e3e6ea;
-    cursor: col-resize;
-    transition: background .15s;
+    cursor: col-resize; transition: background .15s;
 }
-
 .hc-resizer:hover { background: #dfe4ea; }
 
-/* ═══════════════════════════════════════════════════
-   COL 1 — TICKET LIST
-═══════════════════════════════════════════════════ */
+/* COL 1 */
 .hc-col-list {
-    width: 360px;
-    min-width: 300px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: #fff;
-    border-right: 1px solid #e8e8e8;
+    width: 360px; min-width: 300px; flex-shrink: 0;
+    display: flex; flex-direction: column; overflow: hidden;
+    background: #fff; border-right: 1px solid #e8e8e8;
 }
-
 .hcl-header { padding: 20px 20px 12px; flex-shrink: 0; }
-.hcl-title  {
-    font-size: 13px; font-weight: 800; letter-spacing: .5px;
-    text-transform: uppercase; margin-bottom: 2px;
-}
+.hcl-title { font-size: 13px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 2px; }
 .hcl-sub { font-size: 11px; color: #999; margin-bottom: 16px; }
-
-.hcl-new-btn {
-    font-family: 'Poppins', sans-serif;
-    font-size: 12px; font-weight: 700;
-    padding: 9px 20px;
-    background: #1a1a2e; color: #fff;
-    border: none; border-radius: 8px;
-    cursor: pointer; display: flex; align-items: center; gap: 7px;
-    transition: opacity .15s; white-space: nowrap;
-}
-.hcl-new-btn:hover { opacity: .85; }
-
-.hcl-toprow {
-    display: flex; justify-content: space-between;
-    align-items: flex-start; margin-bottom: 14px;
-}
-
 .hcl-tabs { display: flex; gap: 16px; border-bottom: 2px solid #f0f0f0; margin-bottom: 12px; }
 .hcl-tab {
     font-size: 11px; font-weight: 700; letter-spacing: .6px;
@@ -99,16 +53,6 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     margin-bottom: -2px; transition: color .15s, border-color .15s; user-select: none;
 }
 .hcl-tab.active { color: #1a1a2e; border-bottom-color: #1a1a2e; }
-
-.hcl-pills { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
-.hcl-pill {
-    font-size: 11px; font-weight: 500; padding: 5px 14px;
-    border-radius: 6px; cursor: pointer;
-    border: 1px solid #e0e0e0; background: #fff; color: #555;
-    transition: all .15s; user-select: none;
-}
-.hcl-pill.active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
-
 .hcl-search {
     display: flex; align-items: center; gap: 7px;
     border: 1px solid #e0e0e0; border-radius: 8px;
@@ -121,14 +65,10 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     padding: 8px 0; color: #333; width: 100%;
 }
 .hcl-search input::placeholder { color: #bbb; }
-
 .hcl-list { flex: 1; overflow-y: auto; }
-
 .hcl-card {
-    padding: 14px 20px;
-    border-bottom: 1px solid #f5f5f5;
-    cursor: pointer;
-    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid #f5f5f5;
+    cursor: pointer; display: flex; align-items: flex-start; gap: 12px;
     transition: background .12s; position: relative;
 }
 .hcl-card:hover { background: #fafbfc; }
@@ -137,50 +77,32 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     content: ''; position: absolute; left: 0; top: 0; bottom: 0;
     width: 3px; background: #1a1a2e; border-radius: 0 3px 3px 0;
 }
-
+.hcl-card.unassigned { border-left: 3px solid #f59e0b; }
 .hcl-av {
     width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     font-size: 13px; font-weight: 700; color: #fff; text-transform: uppercase;
 }
-
-.hcl-body  { flex: 1; min-width: 0; }
-.hcl-row1  { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; flex-wrap: wrap; }
-.hcl-name  { font-size: 12.5px; font-weight: 700; color: #1a1a2e; }
-.hcl-email { font-size: 10.5px; color: #bbb; }
-
+.hcl-body { flex: 1; min-width: 0; }
+.hcl-row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; flex-wrap: wrap; }
+.hcl-name { font-size: 12.5px; font-weight: 700; color: #1a1a2e; }
 .hcl-stype {
     font-size: 9px; font-weight: 800; padding: 2px 7px;
     border-radius: 4px; text-transform: uppercase; letter-spacing: .5px;
 }
-.hcl-stype.customer { background: #e8f4fc; color: #2980b9; }
+.hcl-stype.consumer { background: #e8f4fc; color: #2980b9; }
 .hcl-stype.seller   { background: #fff3e0; color: #e67e22; }
-
+.hcl-stype.unassigned-badge { background: #fef3c7; color: #92400e; }
 .hcl-subject { font-size: 12px; color: #333; line-height: 1.4; margin-bottom: 6px; }
-.hcl-tid     { font-size: 10.5px; color: #bbb; }
+.hcl-tid { font-size: 10.5px; color: #bbb; }
 
-.hcl-sbadge {
-    display: inline-block; font-size: 9.5px; font-weight: 800;
-    padding: 3px 9px; border-radius: 5px;
-    text-transform: uppercase; letter-spacing: .4px; white-space: nowrap;
-}
-.hcl-sbadge.urgent  { background: #1a1a2e; color: #fff; }
-.hcl-sbadge.open    { background: #e8f8ee; color: #27ae60; }
-.hcl-sbadge.pending { background: #fff3e0; color: #e67e22; }
-.hcl-sbadge.closed  { background: #f0f0f0; color: #999; }
-
-/* ═══════════════════════════════════════════════════
-   COL 2 — CHAT
-═══════════════════════════════════════════════════ */
+/* COL 2 */
 .hc-col-chat {
-    flex: 1;
-    min-width: 420px;
+    flex: 1; min-width: 420px;
     display: flex; flex-direction: column;
-    overflow: hidden;
-    background: #f7f8f9;
+    overflow: hidden; background: #f7f8f9;
     border-right: 1px solid #e8e8e8;
 }
-
 .hcc-empty {
     flex: 1; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
@@ -188,70 +110,47 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
 }
 .hcc-empty i { font-size: 54px; margin-bottom: 18px; }
 .hcc-empty p { font-size: 13px; font-weight: 500; color: #bbb; line-height: 1.6; }
-
-#hccPanel {
-    display: none;
-    flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-}
-
+#hccPanel { display: none; flex-direction: column; height: 100%; overflow: hidden; }
 .hcc-topbar {
-    background: #fff;
-    padding: 12px 22px;
+    background: #fff; padding: 12px 22px;
     border-bottom: 1px solid #efefef;
-    display: flex; align-items: center; gap: 12px;
-    flex-shrink: 0;
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
 }
 .hcc-av {
     width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     font-size: 14px; font-weight: 700; color: #fff;
 }
-.hcc-name {
-    font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px;
-}
+.hcc-name { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
 .hcc-stype-badge {
     font-size: 9.5px; font-weight: 800; padding: 2px 8px;
     border-radius: 4px; text-transform: uppercase; letter-spacing: .4px;
 }
-.hcc-stype-badge.customer { background: #e8f4fc; color: #2980b9; }
+.hcc-stype-badge.consumer { background: #e8f4fc; color: #2980b9; }
 .hcc-stype-badge.seller   { background: #fff3e0; color: #e67e22; }
 .hcc-meta { font-size: 11px; color: #aaa; margin-top: 2px; }
-
-.hcc-timer-wrap {
-    margin-left: auto;
-    display: flex; align-items: center; gap: 10px;
-}
+.hcc-timer-wrap { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .hcc-timer {
     display: flex; align-items: center; gap: 6px;
     background: #f4f6f8; border: 1px solid #e0e0e0;
     border-radius: 8px; padding: 6px 13px;
     font-size: 13px; font-weight: 700; color: #1a1a2e;
-    font-variant-numeric: tabular-nums;
-    min-width: 80px; justify-content: center;
+    font-variant-numeric: tabular-nums; min-width: 80px; justify-content: center;
 }
 .hcc-timer i { font-size: 12px; color: #999; }
 .hcc-timer.warning { background: #fff3e0; border-color: #f5c96d; color: #e67e22; }
 .hcc-timer.warning i { color: #e67e22; }
-.hcc-timer.danger   { background: #fdecea; border-color: #f5c6c6; color: #e74c3c; animation: timerPulse .8s infinite; }
+.hcc-timer.danger { background: #fdecea; border-color: #f5c6c6; color: #e74c3c; animation: timerPulse .8s infinite; }
 .hcc-timer.danger i { color: #e74c3c; }
-@Html.Raw("@keyframes") timerPulse {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: .6; }
-}
-
+@Html.Raw("@keyframes") timerPulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
 .hcc-end-btn {
-    font-family: 'Poppins', sans-serif;
-    font-size: 11.5px; font-weight: 700;
-    padding: 8px 16px;
-    background: #e74c3c; color: #fff;
-    border: none; border-radius: 8px;
-    cursor: pointer; display: flex; align-items: center; gap: 6px;
+    font-family: 'Poppins', sans-serif; font-size: 11.5px; font-weight: 700;
+    padding: 8px 16px; background: #e74c3c; color: #fff;
+    border: none; border-radius: 8px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
     transition: opacity .15s; white-space: nowrap;
 }
 .hcc-end-btn:hover { opacity: .85; }
-
 .hcc-icon-btn {
     width: 32px; height: 32px; border-radius: 8px;
     border: 1px solid #e0e0e0; background: #fff;
@@ -260,13 +159,21 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     transition: background .15s, color .15s;
 }
 .hcc-icon-btn:hover { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
-
+.hcc-claim-bar {
+    background: #fef3c7; border-bottom: 1px solid #f5d08a;
+    padding: 8px 22px; display: none; align-items: center;
+    justify-content: space-between; font-size: 12px; color: #92400e; flex-shrink: 0;
+}
+.hcc-claim-bar.show { display: flex; }
+.hcc-claim-btn {
+    font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700;
+    padding: 5px 14px; background: #1a1a2e; color: #fff;
+    border: none; border-radius: 6px; cursor: pointer;
+}
 .hcc-body {
-    flex: 1; overflow-y: auto;
-    padding: 24px 28px;
+    flex: 1; overflow-y: auto; padding: 24px 28px;
     display: flex; flex-direction: column; gap: 18px;
 }
-
 .hcc-date-div {
     text-align: center; font-size: 10.5px; color: #bbb;
     font-weight: 500; position: relative; margin: 4px 0;
@@ -277,7 +184,6 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
 }
 .hcc-date-div::before { left: 0; }
 .hcc-date-div::after  { right: 0; }
-
 .hcc-msg { display: flex; gap: 12px; max-width: 75%; }
 .hcc-msg.agent { flex-direction: row-reverse; align-self: flex-end; }
 .hcc-msg-av {
@@ -290,26 +196,19 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
 .hcc-msg-name { font-size: 10.5px; color: #aaa; margin-bottom: 4px; font-weight: 500; }
 .hcc-msg-bub {
     padding: 12px 16px; border-radius: 14px;
-    font-size: 13px; line-height: 1.65; color: #333;
-    background: #efefef;
+    font-size: 13px; line-height: 1.65; color: #333; background: #efefef;
 }
-.hcc-msg.agent .hcc-msg-bub {
-    background: #1a1a2e; color: #fff;
-    border-radius: 14px 14px 2px 14px;
-}
+.hcc-msg.agent .hcc-msg-bub { background: #1a1a2e; color: #fff; border-radius: 14px 14px 2px 14px; }
 .hcc-msg:not(.agent) .hcc-msg-bub { border-radius: 14px 14px 14px 2px; }
 .hcc-msg-time { font-size: 10px; color: #bbb; margin-top: 5px; }
-
 .hcc-system-msg {
     text-align: center; font-size: 11.5px; color: #aaa;
     font-weight: 500; padding: 8px 20px;
     background: #f0f0f0; border-radius: 20px;
     align-self: center; margin: 4px 0;
 }
-
 .hcc-footer {
-    padding: 16px 22px 14px;
-    border-top: 1px solid #efefef;
+    padding: 16px 22px 14px; border-top: 1px solid #efefef;
     background: #fff; flex-shrink: 0;
 }
 .hcc-input-row {
@@ -329,7 +228,6 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     font-size: 14px; flex-shrink: 0; transition: background .15s;
 }
 .hcc-send-btn:hover { background: #333; }
-
 .hcc-footer-btns { display: flex; gap: 8px; }
 .hcc-faction {
     display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -339,25 +237,15 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     cursor: pointer; transition: all .15s; flex: 1;
 }
 .hcc-faction:hover { background: #f4f6f8; }
-.hcc-faction.resolve {
-    background: #1a1a2e; color: #fff; border-color: #1a1a2e; flex: 1.5;
-}
+.hcc-faction.resolve { background: #1a1a2e; color: #fff; border-color: #1a1a2e; flex: 1.5; }
 .hcc-faction.resolve:hover { background: #333; }
-
 .hcc-input-row.ended { opacity: .5; pointer-events: none; }
 
-/* ═══════════════════════════════════════════════════
-   COL 3 — TICKET DETAILS
-═══════════════════════════════════════════════════ */
+/* COL 3 */
 .hc-col-detail {
-    width: 300px;
-    min-width: 260px;
-    flex-shrink: 0;
-    display: flex; flex-direction: column;
-    overflow: hidden;
-    background: #fff;
+    width: 300px; min-width: 260px; flex-shrink: 0;
+    display: flex; flex-direction: column; overflow: hidden; background: #fff;
 }
-
 .hcd-empty {
     flex: 1; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
@@ -365,133 +253,38 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
 }
 .hcd-empty i { font-size: 36px; margin-bottom: 12px; }
 .hcd-empty p { font-size: 12px; color: #bbb; line-height: 1.6; }
-
-#hcDetailPanel {
-    display: none;
-    flex-direction: column;
-    height: 100%;
-    overflow-y: auto;
-}
+#hcDetailPanel { display: none; flex-direction: column; height: 100%; overflow-y: auto; }
 #hcDetailPanel::-webkit-scrollbar { width: 4px; }
 #hcDetailPanel::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 4px; }
-
 .hcd-lbar {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 18px 10px;
-    border-bottom: 1px solid #f0f0f0; flex-shrink: 0;
+    padding: 14px 18px 10px; border-bottom: 1px solid #f0f0f0; flex-shrink: 0;
 }
-.hcd-lbar-title {
-    font-size: 10px; font-weight: 800; text-transform: uppercase;
-    letter-spacing: .8px; color: #aaa;
-}
-
-.hcd-agent-status-section {
-    padding: 14px 18px 12px;
-    border-bottom: 1px solid #f0f0f0;
-    flex-shrink: 0;
-}
-
-.hcd-status-label {
-    font-size: 10px; font-weight: 800; text-transform: uppercase;
-    letter-spacing: .7px; color: #bbb; margin-bottom: 8px; display: block;
-}
-
+.hcd-lbar-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: #aaa; }
+.hcd-agent-status-section { padding: 14px 18px 12px; border-bottom: 1px solid #f0f0f0; flex-shrink: 0; }
+.hcd-status-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; color: #bbb; margin-bottom: 8px; display: block; }
 .hcd-status-wrapper { display: flex; gap: 8px; align-items: center; }
-
 .hcd-status-dropdown {
     flex: 1; border: 1px solid #e0e0e0; border-radius: 6px;
     font-family: 'Poppins', sans-serif; font-size: 12px;
     padding: 8px 12px; color: #333; background: #fafafa;
     outline: none; cursor: pointer; transition: all .15s;
 }
-.hcd-status-dropdown:hover { border-color: #d0d0d0; background: #f5f5f5; }
-.hcd-status-dropdown:focus { border-color: #1a1a2e; background: #fff; box-shadow: 0 0 0 3px rgba(26,26,46,.1); }
-
-.hcd-status-indicator {
-    width: 10px; height: 10px; border-radius: 50%;
-    flex-shrink: 0; transition: background .3s;
-}
+.hcd-status-dropdown:focus { border-color: #1a1a2e; background: #fff; }
+.hcd-status-indicator { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; transition: background .3s; }
 .hcd-status-indicator.available { background: #27ae60; }
 .hcd-status-indicator.break     { background: #e67e22; }
 .hcd-status-indicator.lunch     { background: #3498db; }
 .hcd-status-indicator.eos       { background: #e74c3c; }
-
-.hcd-pri {
-    font-size: 10px; font-weight: 800; padding: 3px 10px;
-    border-radius: 20px; text-transform: uppercase; letter-spacing: .4px;
-}
-.hcd-pri.high   { background: #fdecea; color: #e74c3c; }
-.hcd-pri.medium { background: #fff3e0; color: #e67e22; }
-.hcd-pri.low    { background: #e8f8ee; color: #27ae60; }
-.hcd-pri.urgent { background: #1a1a2e; color: #fff; }
-
 .hcd-subj-blk { padding: 14px 18px 12px; border-bottom: 1px solid #f0f0f0; }
 .hcd-subj { font-size: 13px; font-weight: 700; color: #1a1a2e; line-height: 1.4; margin-bottom: 8px; }
-.hcd-stat-pill {
-    display: inline-block; font-size: 10px; font-weight: 800;
-    padding: 3px 10px; border-radius: 5px;
-    text-transform: uppercase; letter-spacing: .4px;
-}
-.hcd-stat-pill.urgent  { background: #1a1a2e; color: #fff; }
-.hcd-stat-pill.open    { background: #e8f8ee; color: #27ae60; }
-.hcd-stat-pill.pending { background: #fff3e0; color: #e67e22; }
-.hcd-stat-pill.closed  { background: #f0f0f0; color: #999; }
-
-.hcd-sender {
-    display: flex; align-items: center; gap: 10px;
-    padding: 13px 18px; border-bottom: 1px solid #f0f0f0;
-}
-.hcd-sav {
-    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 700; color: #fff;
-}
-.hcd-sname  { font-size: 12.5px; font-weight: 700; }
-.hcd-semail { font-size: 11px; color: #aaa; margin-top: 1px; }
-.hcd-stype-pill {
-    margin-left: auto; font-size: 9.5px; font-weight: 800;
-    padding: 3px 8px; border-radius: 4px;
-    text-transform: uppercase; letter-spacing: .4px;
-}
-.hcd-stype-pill.customer { background: #e8f4fc; color: #2980b9; }
-.hcd-stype-pill.seller   { background: #fff3e0; color: #e67e22; }
-
 .hcd-info-section { border-bottom: 1px solid #f0f0f0; }
-.hcd-info-row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 9px 18px; border-bottom: 1px solid #fafafa;
-}
+.hcd-info-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 18px; border-bottom: 1px solid #fafafa; }
 .hcd-info-key { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #bbb; }
 .hcd-info-val { font-size: 12px; font-weight: 700; color: #1a1a2e; text-align: right; }
-.hcd-info-val.urgent  { color: #1a1a2e; }
-.hcd-info-val.open    { color: #27ae60; }
-.hcd-info-val.pending { color: #e67e22; }
-.hcd-info-val.closed  { color: #999; }
-.hcd-info-val.high    { color: #e74c3c; }
-.hcd-info-val.medium  { color: #e67e22; }
-.hcd-info-val.low     { color: #27ae60; }
-
+.hcd-section-lbl { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; color: #bbb; margin-bottom: 8px; }
 .hcd-reason-blk { padding: 14px 18px; border-bottom: 1px solid #f0f0f0; }
-.hcd-section-lbl {
-    font-size: 10px; font-weight: 800; text-transform: uppercase;
-    letter-spacing: .7px; color: #bbb; margin-bottom: 8px;
-}
-.hcd-reason-txt {
-    font-size: 12px; color: #444; line-height: 1.75;
-    background: #f7f8fa; border-radius: 8px; padding: 11px 13px;
-}
-
-.hcd-attach-blk { padding: 12px 18px; border-bottom: 1px solid #f0f0f0; }
-.hcd-chips { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
-.hcd-chip {
-    display: flex; align-items: center; gap: 7px;
-    background: #f4f6f8; border: 1px solid #e8e8e8; border-radius: 7px;
-    padding: 7px 11px; font-size: 11.5px; color: #555; cursor: pointer;
-    transition: background .12s;
-}
-.hcd-chip:hover { background: #eef0f2; }
-.hcd-chip i { color: #bbb; font-size: 12px; }
-
+.hcd-reason-txt { font-size: 12px; color: #444; line-height: 1.75; background: #f7f8fa; border-radius: 8px; padding: 11px 13px; }
 .hcd-update-blk { padding: 14px 18px; }
 .hcd-update-sel {
     width: 100%; border: 1px solid #e0e0e0; border-radius: 8px;
@@ -505,14 +298,17 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     border: none; border-radius: 8px; cursor: pointer; transition: opacity .15s;
 }
 .hcd-save-btn:hover { opacity: .85; }
+.hcl-list::-webkit-scrollbar, .hcc-body::-webkit-scrollbar { width: 4px; }
+.hcl-list::-webkit-scrollbar-track, .hcc-body::-webkit-scrollbar-track { background: transparent; }
+.hcl-list::-webkit-scrollbar-thumb, .hcc-body::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
 
-.hcl-list::-webkit-scrollbar,
-.hcc-body::-webkit-scrollbar { width: 4px; }
-.hcl-list::-webkit-scrollbar-track,
-.hcc-body::-webkit-scrollbar-track { background: transparent; }
-.hcl-list::-webkit-scrollbar-thumb,
-.hcc-body::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
-
+/* Loading spinner */
+.hc-loading {
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px; color: #bbb; font-size: 13px; gap: 10px;
+}
+.hc-loading i { animation: spin 1s linear infinite; }
+@Html.Raw("@keyframes") spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 }
 
@@ -540,16 +336,19 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
             </div>
 
             <div class="hcl-tabs">
-                <div class="hcl-tab active" onclick="hcSetStatus(this,'queueing')">Queueing</div>
-                <div class="hcl-tab" onclick="hcSetStatus(this,'resolved')">Resolved Tickets</div>
+                <div class="hcl-tab active" onclick="hcSetTab(this,'assigned')">My Tickets</div>
+                <div class="hcl-tab" onclick="hcSetTab(this,'unassigned')">Unassigned</div>
+                <div class="hcl-tab" onclick="hcSetTab(this,'resolved')">Resolved</div>
             </div>
 
             <div class="hcl-search">
                 <i class="fas fa-search"></i>
-                <input type="text" id="hclQ" placeholder="Search waiting lines..." oninput="hcFilter()" />
+                <input type="text" id="hclQ" placeholder="Search tickets..." oninput="hcFilter()" />
             </div>
         </div>
-        <div class="hcl-list" id="hclList"></div>
+        <div class="hcl-list" id="hclList">
+            <div class="hc-loading"><i class="fas fa-circle-notch"></i> Loading tickets...</div>
+        </div>
     </div>
 
     <div class="hc-resizer" id="hcResizerLeft"></div>
@@ -558,7 +357,7 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     <div class="hc-col-chat" id="hcColChat">
         <div class="hcc-empty" id="hccEmpty">
             <i class="fas fa-comments"></i>
-            <p>Click <strong>View</strong> on any ticket<br/>to open the conversation</p>
+            <p>Select a ticket to open the conversation</p>
         </div>
 
         <div id="hccPanel">
@@ -579,13 +378,16 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
                     <button class="hcc-end-btn" id="hccEndBtn" onclick="hcEndConversation()">
                         <i class="fas fa-phone-slash"></i> End Conversation
                     </button>
-                    <button class="hcc-icon-btn" title="Transfer" onclick="hcTransfer()">
-                        <i class="fas fa-share"></i>
-                    </button>
                     <button class="hcc-icon-btn" title="Resolve" onclick="hcResolve()">
                         <i class="fas fa-check"></i>
                     </button>
                 </div>
+            </div>
+
+            <!-- Claim bar for unassigned conversations -->
+            <div class="hcc-claim-bar" id="hccClaimBar">
+                <span><i class="fas fa-exclamation-circle"></i> This ticket is unassigned. Claim it to reply.</span>
+                <button class="hcc-claim-btn" onclick="hcClaim()">Claim Ticket</button>
             </div>
 
             <div class="hcc-body" id="hccBody"></div>
@@ -593,7 +395,7 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
             <div class="hcc-footer">
                 <div class="hcc-input-row" id="hccInputRow">
                     <input type="text" id="hccChatIn"
-                        placeholder="Type a reply to the customer…"
+                        placeholder="Type a reply..."
                         onkeydown="if(event.key==='Enter') hcSend()"/>
                     <button class="hcc-send-btn" onclick="hcSend()">
                         <i class="fas fa-paper-plane"></i>
@@ -601,7 +403,6 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
                 </div>
                 <div class="hcc-footer-btns">
                     <button class="hcc-faction" onclick="hcAttach()"><i class="fas fa-paperclip"></i> Attach</button>
-                    <button class="hcc-faction" onclick="hcTransfer()"><i class="fas fa-share"></i> Transfer</button>
                     <button class="hcc-faction resolve" onclick="hcResolve()">
                         <i class="fas fa-check-circle"></i> Resolve
                     </button>
@@ -616,7 +417,7 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     <div class="hc-col-detail" id="hcColDetail">
         <div class="hcd-empty" id="hcdEmpty">
             <i class="fas fa-file-alt"></i>
-            <p>Ticket details<br/>will appear here</p>
+            <p>Ticket details will appear here</p>
         </div>
 
         <div id="hcDetailPanel">
@@ -641,41 +442,35 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
                 <div class="hcd-subj" id="hcdSubj">—</div>
             </div>
 
-            <div class="hcd-sender">
-                <div class="hcd-sav" id="hcdSav">—</div>
-                <div>
-                    <div class="hcd-sname"  id="hcdSname">—</div>
-                    <div class="hcd-semail" id="hcdSemail">—</div>
-                </div>
-                <div class="hcd-stype-pill" id="hcdStype">—</div>
-            </div>
-
             <div class="hcd-info-section">
                 <div class="hcd-info-row">
-                    <span class="hcd-info-key">Date</span>
-                    <span class="hcd-info-val" id="hcdIDate">—</span>
+                    <span class="hcd-info-key">Category</span>
+                    <span class="hcd-info-val" id="hcdICat">—</span>
                 </div>
                 <div class="hcd-info-row">
-                    <span class="hcd-info-key">Time</span>
-                    <span class="hcd-info-val" id="hcdITime">—</span>
+                    <span class="hcd-info-key">User Type</span>
+                    <span class="hcd-info-val" id="hcdIType">—</span>
+                </div>
+                <div class="hcd-info-row">
+                    <span class="hcd-info-key">Status</span>
+                    <span class="hcd-info-val" id="hcdIStatus">—</span>
+                </div>
+                <div class="hcd-info-row">
+                    <span class="hcd-info-key">Created</span>
+                    <span class="hcd-info-val" id="hcdIDate">—</span>
                 </div>
             </div>
 
             <div class="hcd-reason-blk">
-                <div class="hcd-section-lbl">Reason / Message</div>
+                <div class="hcd-section-lbl">Question / Reason</div>
                 <div class="hcd-reason-txt" id="hcdReason">—</div>
-            </div>
-
-            <div class="hcd-attach-blk" id="hcdAttachBlk" style="display:none">
-                <div class="hcd-section-lbl">Attachments</div>
-                <div class="hcd-chips" id="hcdChips"></div>
             </div>
 
             <div class="hcd-update-blk">
                 <div class="hcd-section-lbl">Update Status</div>
                 <select class="hcd-update-sel" id="hcdUpdateSel">
-                    <option value="queueing">Queueing</option>
-                    <option value="resolved">Resolved Tickets</option>
+                    <option value="active">Active</option>
+                    <option value="Resolved">Resolved</option>
                 </select>
                 <button class="hcd-save-btn" onclick="hcSaveStatus()">Save Status</button>
             </div>
@@ -689,68 +484,356 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
 
     var AGENT_NAME     = '@agentName';
     var AGENT_INITIALS = '@agentInitials';
+    var AGENT_USER_ID  = @userId;
+
+    var allConversations = [];
+    var activeTab        = 'assigned';
+    var selId            = null;
+    var convEnded        = false;
+    var timerInterval    = null;
+    var timerSeconds     = 180;
+    var pollInterval     = null;
 
     const COLS = ['#2980b9','#e67e22','#27ae60','#8e44ad','#e74c3c','#16a085','#d35400','#2c3e50'];
-    function ac(n) { let h=0; for(let i=0;i<n.length;i++) h=n.charCodeAt(i)+((h<<5)-h); return COLS[Math.abs(h)%COLS.length]; }
-    function ini(n) { return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
-    function isResolvedStatus(s) { return s === 'closed' || s === 'resolved'; }
+    function ac(n) { let h=0; for(let i=0;i<(n||'').length;i++) h=n.charCodeAt(i)+((h<<5)-h); return COLS[Math.abs(h)%COLS.length]; }
+    function ini(n) { return (n||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
+    function fmtDate(d) { return d ? new Date(d).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'; }
+    function clamp(v,min,max) { return Math.max(min,Math.min(max,v)); }
 
-    let tickets = [];
-    let aStat = 'queueing', selId = null;
-    let lastMessageId = 0;
-    let pollingInterval = null;
-
-    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-
+    /* ── RESIZERS ─────────────────────────────────────────────── */
     function initResizers() {
         const shell = document.querySelector('.hc-shell');
         const colList = document.getElementById('hcColList');
-        const colChat = document.getElementById('hcColChat');
         const colDetail = document.getElementById('hcColDetail');
         const leftHandle = document.getElementById('hcResizerLeft');
         const rightHandle = document.getElementById('hcResizerRight');
-        if (!shell || !colList || !colChat || !colDetail || !leftHandle || !rightHandle) return;
+        if (!shell || !leftHandle || !rightHandle) return;
 
         function startDrag(onMove) {
-            return function (e) {
+            return function(e) {
                 e.preventDefault();
                 shell.classList.add('resizing');
                 function move(ev) { onMove(ev); }
-                function up() {
-                    shell.classList.remove('resizing');
-                    document.removeEventListener('mousemove', move);
-                    document.removeEventListener('mouseup', up);
-                }
+                function up() { shell.classList.remove('resizing'); document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); }
                 document.addEventListener('mousemove', move);
                 document.addEventListener('mouseup', up);
             };
         }
 
-        leftHandle.addEventListener('mousedown', startDrag(function (ev) {
-            const shellRect = shell.getBoundingClientRect();
-            const detailWidth = colDetail.getBoundingClientRect().width;
-            const maxList = shellRect.width - detailWidth - 420 - 16;
-            colList.style.width = `${clamp(ev.clientX - shellRect.left, 260, maxList)}px`;
+        leftHandle.addEventListener('mousedown', startDrag(function(ev) {
+            const r = shell.getBoundingClientRect();
+            const dw = colDetail.getBoundingClientRect().width;
+            colList.style.width = clamp(ev.clientX - r.left, 260, r.width - dw - 420 - 16) + 'px';
         }));
 
-        rightHandle.addEventListener('mousedown', startDrag(function (ev) {
-            const shellRect = shell.getBoundingClientRect();
-            const listWidth = colList.getBoundingClientRect().width;
-            const maxDetail = shellRect.width - listWidth - 420 - 16;
-            colDetail.style.width = `${clamp(shellRect.right - ev.clientX, 240, maxDetail)}px`;
+        rightHandle.addEventListener('mousedown', startDrag(function(ev) {
+            const r = shell.getBoundingClientRect();
+            const lw = colList.getBoundingClientRect().width;
+            colDetail.style.width = clamp(r.right - ev.clientX, 240, r.width - lw - 420 - 16) + 'px';
         }));
     }
 
-    let timerInterval = null, timerSeconds = 180, convEnded = false;
+    /* ── LOAD CONVERSATIONS FROM DB ───────────────────────────── */
+    function loadConversations() {
+        fetch('/Agent/GetConversations')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) { showListError('Failed to load tickets.'); return; }
+                allConversations = data.conversations || [];
+                updateStats();
+                renderList();
+                // Auto-open first assigned conversation
+                var first = allConversations.find(function(c) { return c.isAssigned; });
+                if (first) openConversation(first.id);
+            })
+            .catch(function() { showListError('Could not reach server.'); });
+    }
 
-    function startTimer() {
-        clearInterval(timerInterval);
-        timerSeconds = 180; convEnded = false;
-        updateTimerDisplay();
-        document.getElementById('hccInputRow').classList.remove('ended');
+    function showListError(msg) {
+        document.getElementById('hclList').innerHTML =
+            '<div style="padding:30px;text-align:center;color:#e24b4a;font-size:12px;">' + msg + '</div>';
+    }
+
+    function updateStats() {
+        var q = allConversations.filter(function(c) { return c.status !== 'Resolved' && c.isAssigned; }).length;
+        var r = allConversations.filter(function(c) { return c.status === 'Resolved' && c.isAssigned; }).length;
+        document.getElementById('statQueueing').textContent = q;
+        document.getElementById('statResolved').textContent = r;
+    }
+
+    /* ── FILTER & RENDER LIST ─────────────────────────────────── */
+    function filtered() {
+        var q = (document.getElementById('hclQ')?.value || '').toLowerCase().trim();
+        return allConversations.filter(function(c) {
+            if (activeTab === 'assigned'   && (!c.isAssigned || c.status === 'Resolved')) return false;
+            if (activeTab === 'unassigned' && c.isAssigned) return false;
+            if (activeTab === 'resolved'   && (c.status !== 'Resolved' || !c.isAssigned)) return false;
+            if (q && !(
+                (c.question || '').toLowerCase().includes(q) ||
+                (c.category || '').toLowerCase().includes(q) ||
+                String(c.id).includes(q)
+            )) return false;
+            return true;
+        });
+    }
+
+    function renderList() {
+        var rows = filtered();
+        var list = document.getElementById('hclList');
+        list.innerHTML = '';
+
+        if (!rows.length) {
+            list.innerHTML = '<div style="padding:40px;text-align:center;color:#bbb;font-size:13px">No tickets found.</div>';
+            return;
+        }
+
+        rows.forEach(function(c) {
+            var isUnassigned = !c.isAssigned;
+            var color = ac(c.category || 'ticket');
+            var card = document.createElement('div');
+            card.className = 'hcl-card' + (c.id === selId ? ' active' : '') + (isUnassigned ? ' unassigned' : '');
+            card.onclick = function() { openConversation(c.id); };
+            card.innerHTML =
+                '<div class="hcl-av" style="background:' + color + '">' + ini(c.category) + '</div>' +
+                '<div class="hcl-body">' +
+                    '<div class="hcl-row1">' +
+                        '<span class="hcl-name">Ticket #' + c.id + '</span>' +
+                        '<span class="hcl-stype ' + (isUnassigned ? 'unassigned-badge' : (c.userType||'').toLowerCase()) + '">' +
+                            (isUnassigned ? 'Unassigned' : (c.userType || '—')) +
+                        '</span>' +
+                    '</div>' +
+                    '<div class="hcl-subject">' + (c.question || '—') + '</div>' +
+                    '<div style="display:flex;align-items:center;gap:8px;margin-top:4px">' +
+                        '<span class="hcl-tid">' + (c.category || '—') + ' · ' + fmtDate(c.createdAt) + '</span>' +
+                    '</div>' +
+                '</div>';
+            list.appendChild(card);
+        });
+    }
+
+    window.hcSetTab = function(el, tab) {
+        document.querySelectorAll('.hcl-tab').forEach(function(t) { t.classList.remove('active'); });
+        el.classList.add('active');
+        activeTab = tab;
+        renderList();
+    };
+    window.hcFilter = function() { renderList(); };
+
+    /* ── OPEN CONVERSATION ────────────────────────────────────── */
+    function openConversation(id) {
+        selId = id;
+        var conv = allConversations.find(function(c) { return c.id === id; });
+        if (!conv) return;
+        renderList();
+
+        // Show chat panel
+        document.getElementById('hccEmpty').style.display = 'none';
+        var cp = document.getElementById('hccPanel');
+        cp.style.display = 'flex'; cp.style.flexDirection = 'column'; cp.style.height = '100%';
+
+        // Topbar
+        var color = ac(conv.category || 'ticket');
+        var cav = document.getElementById('hccAv');
+        cav.style.background = color;
+        cav.textContent = ini(conv.category);
+        document.getElementById('hccName').textContent = 'Ticket #' + conv.id;
+        var sb = document.getElementById('hccStypeBadge');
+        sb.textContent = conv.userType || '—';
+        sb.className = 'hcc-stype-badge ' + (conv.userType || '').toLowerCase();
+        document.getElementById('hccMeta').textContent = conv.category + ' · ' + fmtDate(conv.createdAt);
+
+        // Claim bar
+        var claimBar = document.getElementById('hccClaimBar');
+        if (!conv.isAssigned) {
+            claimBar.classList.add('show');
+            document.getElementById('hccInputRow').classList.add('ended');
+        } else {
+            claimBar.classList.remove('show');
+            document.getElementById('hccInputRow').classList.remove('ended');
+        }
+
+        // Detail panel
+        document.getElementById('hcdEmpty').style.display = 'none';
+        var dp = document.getElementById('hcDetailPanel');
+        dp.style.display = 'flex'; dp.style.flexDirection = 'column';
+        document.getElementById('hcdSubj').textContent   = conv.question || '—';
+        document.getElementById('hcdICat').textContent   = conv.category || '—';
+        document.getElementById('hcdIType').textContent  = conv.userType || '—';
+        document.getElementById('hcdIStatus').textContent = conv.status || '—';
+        document.getElementById('hcdIDate').textContent  = fmtDate(conv.createdAt);
+        document.getElementById('hcdReason').textContent = conv.question || '—';
+        document.getElementById('hcdUpdateSel').value    = conv.status === 'Resolved' ? 'Resolved' : 'active';
+
+        // Reset timer
+        convEnded = false;
         document.getElementById('hccEndBtn').disabled = false;
         document.getElementById('hccEndBtn').style.opacity = '1';
-        timerInterval = setInterval(function () {
+        startTimer();
+
+        // Load messages
+        loadMessages(id);
+
+        // Start polling for new messages every 5s
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(function() {
+            if (selId === id) loadMessages(id, true);
+        }, 5000);
+    }
+
+    /* ── LOAD MESSAGES ────────────────────────────────────────── */
+    function loadMessages(conversationId, silent) {
+        fetch('/Agent/GetMessages?conversationId=' + conversationId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                renderMessages(data.messages || [], conversationId, silent);
+            })
+            .catch(function() {});
+    }
+
+    function renderMessages(messages, conversationId, silent) {
+        var body = document.getElementById('hccBody');
+        var wasAtBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
+
+        if (!silent) body.innerHTML = '';
+
+        // Build set of existing message IDs to avoid duplicates
+        var existing = {};
+        body.querySelectorAll('[data-msgid]').forEach(function(el) {
+            existing[el.getAttribute('data-msgid')] = true;
+        });
+
+        messages.forEach(function(m) {
+            if (existing[m.id]) return;
+            var isAgent = m.senderRole === 'Agent';
+            var w = document.createElement('div');
+            w.className = 'hcc-msg' + (isAgent ? ' agent' : '');
+            w.setAttribute('data-msgid', m.id);
+            w.innerHTML =
+                '<div class="hcc-msg-av" style="background:' + (isAgent ? '#1a1a2e' : ac('user')) + '">' +
+                    (isAgent ? AGENT_INITIALS : 'U') +
+                '</div>' +
+                '<div class="hcc-msg-wrap">' +
+                    '<div class="hcc-msg-name">' + (isAgent ? AGENT_NAME : (m.senderRole || 'User')) + '</div>' +
+                    '<div class="hcc-msg-bub">' + escH(m.messageText) + '</div>' +
+                    '<div class="hcc-msg-time">' + fmtDate(m.createdAt) + '</div>' +
+                '</div>';
+            body.appendChild(w);
+        });
+
+        if (!silent || wasAtBottom) body.scrollTop = body.scrollHeight;
+    }
+
+    function escH(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    /* ── SEND MESSAGE ─────────────────────────────────────────── */
+    window.hcSend = function() {
+        if (convEnded) return;
+        var inp  = document.getElementById('hccChatIn');
+        var text = inp.value.trim();
+        if (!text || !selId) return;
+
+        var conv = allConversations.find(function(c) { return c.id === selId; });
+        if (conv && !conv.isAssigned) {
+            alert('Please claim this ticket first before sending a message.');
+            return;
+        }
+
+        fetch('/Agent/SendMessage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversationId: selId, messageText: text })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                inp.value = '';
+                // Append message immediately to UI
+                var body = document.getElementById('hccBody');
+                var w = document.createElement('div');
+                w.className = 'hcc-msg agent';
+                w.setAttribute('data-msgid', data.id);
+                w.innerHTML =
+                    '<div class="hcc-msg-av" style="background:#1a1a2e">' + AGENT_INITIALS + '</div>' +
+                    '<div class="hcc-msg-wrap">' +
+                        '<div class="hcc-msg-name">' + AGENT_NAME + '</div>' +
+                        '<div class="hcc-msg-bub">' + escH(text) + '</div>' +
+                        '<div class="hcc-msg-time">Just now</div>' +
+                    '</div>';
+                body.appendChild(w);
+                body.scrollTop = body.scrollHeight;
+            } else {
+                alert(data.message || 'Failed to send message.');
+            }
+        })
+        .catch(function() { alert('Could not reach server.'); });
+    };
+
+    /* ── CLAIM CONVERSATION ───────────────────────────────────── */
+    window.hcClaim = function() {
+        if (!selId) return;
+        fetch('/Agent/ClaimConversation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversationId: selId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                // Update local state
+                var conv = allConversations.find(function(c) { return c.id === selId; });
+                if (conv) { conv.isAssigned = true; conv.agentId = AGENT_USER_ID; }
+                document.getElementById('hccClaimBar').classList.remove('show');
+                document.getElementById('hccInputRow').classList.remove('ended');
+                renderList();
+                updateStats();
+            } else {
+                alert(data.message || 'Could not claim ticket.');
+            }
+        })
+        .catch(function() { alert('Could not reach server.'); });
+    };
+
+    /* ── RESOLVE ──────────────────────────────────────────────── */
+    window.hcResolve = function() {
+        if (!selId) return;
+        fetch('/Agent/ResolveConversation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversationId: selId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var conv = allConversations.find(function(c) { return c.id === selId; });
+                if (conv) conv.status = 'Resolved';
+                appendSystemMsg('✓ Ticket marked as Resolved.');
+                endConv();
+                updateStats();
+                renderList();
+            } else {
+                alert(data.message || 'Could not resolve ticket.');
+            }
+        })
+        .catch(function() { alert('Could not reach server.'); });
+    };
+
+    /* ── SAVE STATUS ──────────────────────────────────────────── */
+    window.hcSaveStatus = function() {
+        if (!selId) return;
+        var newStatus = document.getElementById('hcdUpdateSel').value;
+        if (newStatus === 'Resolved') { hcResolve(); return; }
+        var conv = allConversations.find(function(c) { return c.id === selId; });
+        if (conv) conv.status = newStatus;
+        updateStats(); renderList();
+    };
+
+    /* ── TIMER ────────────────────────────────────────────────── */
+    function startTimer() {
+        clearInterval(timerInterval);
+        timerSeconds = 180;
+        updateTimerDisplay();
+        timerInterval = setInterval(function() {
             timerSeconds--;
             updateTimerDisplay();
             if (timerSeconds <= 0) { clearInterval(timerInterval); timerExpired(); }
@@ -758,19 +841,19 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     }
 
     function updateTimerDisplay() {
-        const m = Math.floor(timerSeconds / 60), s = timerSeconds % 60;
-        const el = document.getElementById('hccTimerVal');
-        const wrap = document.getElementById('hccTimer');
-        if (el) el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+        var m = Math.floor(timerSeconds/60), s = timerSeconds%60;
+        var el = document.getElementById('hccTimerVal');
+        var wrap = document.getElementById('hccTimer');
+        if (el) el.textContent = m + ':' + (s<10?'0':'') + s;
         if (wrap) {
-            wrap.classList.remove('warning', 'danger');
+            wrap.classList.remove('warning','danger');
             if (timerSeconds <= 30) wrap.classList.add('danger');
             else if (timerSeconds <= 60) wrap.classList.add('warning');
         }
     }
 
     function timerExpired() {
-        const el = document.getElementById('hccTimerVal');
+        var el = document.getElementById('hccTimerVal');
         if (el) el.textContent = '0:00';
         appendSystemMsg('⏱ Session time expired — conversation ended automatically.');
         endConv();
@@ -779,300 +862,61 @@ var agentInitials = string.Join("", agentName.Trim().Split(new char[]{' '}, Stri
     function endConv() {
         convEnded = true;
         clearInterval(timerInterval);
-        clearInterval(pollingInterval);
+        if (pollInterval) clearInterval(pollInterval);
         document.getElementById('hccInputRow').classList.add('ended');
         document.getElementById('hccChatIn').placeholder = 'Conversation has ended.';
-        const endBtn = document.getElementById('hccEndBtn');
+        var endBtn = document.getElementById('hccEndBtn');
         if (endBtn) { endBtn.disabled = true; endBtn.style.opacity = '.45'; }
     }
 
     function appendSystemMsg(text) {
-        const body = document.getElementById('hccBody');
+        var body = document.getElementById('hccBody');
         if (!body) return;
-        const d = document.createElement('div');
+        var d = document.createElement('div');
         d.className = 'hcc-system-msg';
         d.textContent = text;
         body.appendChild(d);
         body.scrollTop = body.scrollHeight;
     }
 
-    window.hcEndConversation = function () {
+    window.hcEndConversation = function() {
         if (convEnded) return;
         appendSystemMsg('✓ Conversation ended by ' + AGENT_NAME + '.');
         endConv();
     };
 
-    function filtered() {
-        const q = (document.getElementById('hclQ')?.value || '').toLowerCase().trim();
-        return tickets.filter(t => {
-            if (aStat === 'resolved' && !isResolvedStatus(t.status)) return false;
-            if (aStat === 'queueing' && isResolvedStatus(t.status)) return false;
-            if (q && !(
-                t.sender.toLowerCase().includes(q) ||
-                t.email.toLowerCase().includes(q) ||
-                t.subject.toLowerCase().includes(q) ||
-                t.id.toLowerCase().includes(q)
-            )) return false;
-            return true;
-        });
-    }
-
-    window.hcSetStatus = function (el, v) {
-        document.querySelectorAll('.hcl-tab').forEach(t => t.classList.remove('active'));
-        el.classList.add('active'); aStat = v; renderList();
-    };
-    window.hcFilter = function () { renderList(); };
-
-    function renderList() {
-        const queueing = tickets.filter(t => !isResolvedStatus(t.status)).length;
-        const resolved = tickets.filter(t => isResolvedStatus(t.status)).length;
-        document.getElementById('statQueueing').textContent = queueing;
-        document.getElementById('statResolved').textContent = resolved;
-
-        const rows = filtered();
-        const list = document.getElementById('hclList');
-        list.innerHTML = '';
-        if (!rows.length) {
-            list.innerHTML = '<div style="padding:40px;text-align:center;color:#bbb;font-size:13px">No tickets found.</div>';
-            return;
-        }
-        rows.forEach(t => {
-            const stc = t.stype === 'Customer' ? 'customer' : 'seller';
-            const color = ac(t.sender);
-            const card = document.createElement('div');
-            card.className = 'hcl-card' + (t.id === selId ? ' active' : '');
-            card.onclick = () => openTicket(t.id);
-            card.innerHTML = `
-                <div class="hcl-av" style="background:${color}">${ini(t.sender)}</div>
-                <div class="hcl-body">
-                    <div class="hcl-row1">
-                        <span class="hcl-name">${t.sender}</span>
-                        <span class="hcl-stype ${stc}">${t.stype}</span>
-                    </div>
-                    <div class="hcl-email" style="font-size:10.5px;color:#bbb;margin-bottom:5px">${t.email}</div>
-                    <div class="hcl-subject">${t.subject}</div>
-                    <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
-                        <span class="hcl-tid">${t.id}</span>
-                    </div>
-                </div>`;
-            list.appendChild(card);
-        });
-    }
-
-    function loadMessages(convId) {
-        const body = document.getElementById('hccBody');
-        if (!body) return;
-        fetch('/Agent/GetMessages?conversationId=' + convId)
-            .then(r => r.json())
-            .then(data => {
-                if (data.success && data.messages.length) {
-                    const newMessages = data.messages.filter(m => m.id > lastMessageId);
-                    newMessages.forEach(m => {
-                        const isA = m.senderRole === 'Agent';
-                        const senderLabel = isA ? AGENT_NAME : m.senderRole + ' #' + m.senderId;
-                        const avatarColor = isA ? '#1a1a2e' : ac(String(m.senderId));
-                        const avatarInitials = isA ? AGENT_INITIALS : m.senderRole.charAt(0).toUpperCase();
-                        const w = document.createElement('div');
-                        w.className = 'hcc-msg' + (isA ? ' agent' : '');
-                        w.innerHTML = `
-                            <div class="hcc-msg-av" style="background:${avatarColor}">${avatarInitials}</div>
-                            <div class="hcc-msg-wrap">
-                                <div class="hcc-msg-name">${senderLabel}</div>
-                                <div class="hcc-msg-bub">${m.messageText}</div>
-                                <div class="hcc-msg-time">${new Date(m.createdAt).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'})}</div>
-                            </div>`;
-                        body.appendChild(w);
-                        if (m.id > lastMessageId) lastMessageId = m.id;
-                    });
-                    if (newMessages.length) body.scrollTop = body.scrollHeight;
-                }
-            })
-            .catch(() => {});
-    }
-
-    function openTicket(id) {
-        selId = id;
-        const t = tickets.find(x => x.id === id);
-        if (!t) return;
-        renderList();
-
-        document.getElementById('hccEmpty').style.display = 'none';
-        const cp = document.getElementById('hccPanel');
-        cp.style.display = 'flex'; cp.style.flexDirection = 'column'; cp.style.height = '100%';
-
-        const cav = document.getElementById('hccAv');
-        cav.style.background = ac(t.sender); cav.textContent = ini(t.sender);
-        document.getElementById('hccName').textContent = t.sender;
-        const sb = document.getElementById('hccStypeBadge');
-        sb.textContent = t.stype;
-        sb.className = `hcc-stype-badge ${t.stype === 'Customer' ? 'customer' : 'seller'}`;
-        document.getElementById('hccMeta').textContent = t.fullDate;
-
-        const body = document.getElementById('hccBody');
-        body.innerHTML = '';
-        const dd = document.createElement('div');
-        dd.className = 'hcc-date-div'; dd.textContent = t.fullDate;
-        body.appendChild(dd);
-
-        clearInterval(pollingInterval);
-        lastMessageId = 0;
-
-        if (t.convId) {
-            loadMessages(t.convId);
-            pollingInterval = setInterval(() => loadMessages(t.convId), 3000);
-        }
-
-        document.getElementById('hccChatIn').value = '';
-        document.getElementById('hccChatIn').placeholder = 'Type a reply to the customer…';
-        document.getElementById('hccInputRow').classList.remove('ended');
-        startTimer();
-
-        document.getElementById('hcdEmpty').style.display = 'none';
-        const dp = document.getElementById('hcDetailPanel');
-        dp.style.display = 'flex'; dp.style.flexDirection = 'column';
-
-        document.getElementById('hcdSubj').textContent = t.subject;
-
-        const sav = document.getElementById('hcdSav');
-        sav.style.background = ac(t.sender); sav.textContent = ini(t.sender);
-        document.getElementById('hcdSname').textContent = t.sender;
-        document.getElementById('hcdSemail').textContent = t.email;
-        const st = document.getElementById('hcdStype');
-        st.textContent = t.stype;
-        st.className = `hcd-stype-pill ${t.stype === 'Customer' ? 'customer' : 'seller'}`;
-
-        document.getElementById('hcdIDate').textContent = t.fullDate;
-        document.getElementById('hcdITime').textContent = t.time;
-        document.getElementById('hcdReason').textContent = t.reason;
-
-        const aBlk = document.getElementById('hcdAttachBlk');
-        const chips = document.getElementById('hcdChips');
-        if (t.attachments && t.attachments.length) {
-            aBlk.style.display = 'block';
-            chips.innerHTML = '';
-            t.attachments.forEach(a => {
-                const c = document.createElement('div');
-                c.className = 'hcd-chip';
-                c.innerHTML = `<i class="fas fa-paperclip"></i>${a}`;
-                chips.appendChild(c);
-            });
-        } else {
-            aBlk.style.display = 'none';
-        }
-
-        document.getElementById('hcdUpdateSel').value = isResolvedStatus(t.status) ? 'resolved' : 'queueing';
-    }
-
-    window.hcSend = function () {
-        if (convEnded) return;
-        const inp = document.getElementById('hccChatIn');
-        const text = inp.value.trim();
-        if (!text || !selId) return;
-        const t = tickets.find(x => x.id === selId);
-        const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-        if (t.convId) {
-            fetch('/Agent/SendMessage', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ conversationId: t.convId, messageText: text })
-            })
-            .then(r => r.json())
-            .catch(() => {});
-        }
-
-        const body = document.getElementById('hccBody');
-        const w = document.createElement('div');
-        w.className = 'hcc-msg agent';
-        w.innerHTML = `
-            <div class="hcc-msg-av" style="background:#1a1a2e">${AGENT_INITIALS}</div>
-            <div class="hcc-msg-wrap">
-                <div class="hcc-msg-name">${AGENT_NAME}</div>
-                <div class="hcc-msg-bub">${text}</div>
-                <div class="hcc-msg-time">Now · ${now}</div>
-            </div>`;
-        body.appendChild(w);
-        body.scrollTop = body.scrollHeight;
-        inp.value = '';
-    };
-
-    window.updateAgentStatus = function () {
-        const statusSelect = document.getElementById('agentStatusSelect');
-        const indicator    = document.getElementById('statusIndicator');
-        const status       = statusSelect.value;
-        indicator.className = `hcd-status-indicator ${status}`;
+    /* ── AGENT STATUS ─────────────────────────────────────────── */
+    window.updateAgentStatus = function() {
+        var sel = document.getElementById('agentStatusSelect');
+        var ind = document.getElementById('statusIndicator');
+        var status = sel.value;
+        ind.className = 'hcd-status-indicator ' + status;
         fetch('/Agent/UpdateAgentStatus', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ agentName: AGENT_NAME, status: status })
         })
-        .then(r => r.json())
-        .catch(e => console.error('Could not reach server:', e));
+        .then(function(r) { return r.json(); })
+        .catch(function(e) { console.error('Status update failed:', e); });
     };
 
     fetch('/Agent/GetAgentStatus?agentName=' + encodeURIComponent(AGENT_NAME))
-        .then(r => r.json())
-        .then(data => {
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
             if (data.success) {
-                const sel = document.getElementById('agentStatusSelect');
-                const ind = document.getElementById('statusIndicator');
+                var sel = document.getElementById('agentStatusSelect');
+                var ind = document.getElementById('statusIndicator');
                 if (sel) sel.value = data.status;
                 if (ind) ind.className = 'hcd-status-indicator ' + data.status;
             }
         })
-        .catch(e => console.error('Could not load agent status:', e));
+        .catch(function() {});
 
-    window.hcSaveStatus = function () {
-        if (!selId) return;
-        const t = tickets.find(x => x.id === selId);
-        t.status = document.getElementById('hcdUpdateSel').value === 'resolved' ? 'resolved' : 'queueing';
-        renderList();
-        openTicket(selId);
-    };
+    window.hcAttach = function() { alert('Attach — connect to your file upload endpoint.'); };
 
-    window.hcResolve = function () {
-        if (!selId) return;
-        tickets.find(x => x.id === selId).status = 'resolved';
-        appendSystemMsg('✓ Ticket marked as Resolved.');
-        endConv();
-        renderList();
-        openTicket(selId);
-    };
-
-    window.hcAttach   = function () { alert('Attach — connect to your file upload endpoint.'); };
-    window.hcTransfer = function () { alert('Transfer — connect to your agent assignment endpoint.'); };
-    window.hcOpenNew  = function () { alert('New Ticket — connect to your ticket creation flow.'); };
-
+    /* ── INIT ─────────────────────────────────────────────────── */
     initResizers();
-
-    fetch('/Agent/GetConversations')
-        .then(r => r.json())
-        .then(data => {
-            if (data.success && data.conversations.length) {
-                tickets = data.conversations.map(c => ({
-                    id: 'CONV-' + c.id,
-                    convId: c.id,
-                    sender: 'Seller #' + c.sellerId,
-                    email: '',
-                    stype: 'Seller',
-                    cat: 'Support',
-                    priority: 'medium',
-                    status: c.status === 'Active' ? 'open' : 'closed',
-                    subject: 'Conversation #' + c.id,
-                    date: new Date(c.createdAt).toLocaleDateString('en-US', {month:'short', day:'numeric'}),
-                    fullDate: new Date(c.createdAt).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
-                    time: new Date(c.createdAt).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}),
-                    reason: '',
-                    attachments: [],
-                    messages: []
-                }));
-            }
-            renderList();
-            if (tickets.length) openTicket(tickets[0].id);
-        })
-        .catch(() => {
-            renderList();
-        });
+    loadConversations();
 
 })();
 </script>
