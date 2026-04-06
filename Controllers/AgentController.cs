@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using NextHorizon.Models;
 using NextHorizon.Filters;
 using Microsoft.EntityFrameworkCore;
+using System;
 
 namespace NextHorizon.Controllers
 {
@@ -100,6 +101,7 @@ namespace NextHorizon.Controllers
                     userType = f.UserType,
                     agentId = f.AgentId,
                     createdAt = f.CreatedAt,
+                    endTime = f.EndTime,
                     isAssigned = f.AgentId == userId
                 })
                 .ToListAsync();
@@ -177,6 +179,9 @@ namespace NextHorizon.Controllers
             if (conversation == null)
                 return Json(new { success = false, message = "Conversation not found or not assigned to you." });
 
+            if (string.Equals(conversation.Status, "Resolved", StringComparison.OrdinalIgnoreCase))
+                return Json(new { success = false, message = "Conversation is resolved. Unresolve it first to send a message." });
+
             // Auto-claim if unassigned
             if (conversation.AgentId == null)
             {
@@ -227,6 +232,57 @@ namespace NextHorizon.Controllers
             await _context.SaveChangesAsync();
 
             return Json(new { success = true, conversationId = model.ConversationId });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> EndConversation([FromBody] ClaimConversationRequest model)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId") ?? 0;
+            if (userId == 0)
+                return Json(new { success = false, message = "Not logged in." });
+
+            if (model == null || model.ConversationId <= 0)
+                return BadRequest(new { success = false, message = "Invalid request." });
+
+            var conversation = await _context.SupportFAQs
+                .FirstOrDefaultAsync(f => f.Id == model.ConversationId && f.AgentId == userId);
+
+            if (conversation == null)
+                return Json(new { success = false, message = "Conversation not found." });
+
+            // Persist end-of-conversation state in existing SupportFAQs columns
+            conversation.Status = "Resolved";
+            conversation.EndTime = DateTime.Now;
+            await _context.SaveChangesAsync();
+
+            return Json(new { success = true, conversationId = model.ConversationId });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateConversationStatus([FromBody] UpdateConversationStatusRequest model)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId") ?? 0;
+            if (userId == 0)
+                return Json(new { success = false, message = "Not logged in." });
+
+            if (model == null || model.ConversationId <= 0 || string.IsNullOrWhiteSpace(model.Status))
+                return BadRequest(new { success = false, message = "Invalid request." });
+
+            var conversation = await _context.SupportFAQs
+                .FirstOrDefaultAsync(f => f.Id == model.ConversationId && f.AgentId == userId);
+
+            if (conversation == null)
+                return Json(new { success = false, message = "Conversation not found." });
+
+            var normalizedStatus = string.Equals(model.Status, "Resolved", StringComparison.OrdinalIgnoreCase)
+                ? "Resolved"
+                : "Active";
+
+            conversation.Status = normalizedStatus;
+            conversation.EndTime = normalizedStatus == "Resolved" ? DateTime.Now : null;
+            await _context.SaveChangesAsync();
+
+            return Json(new { success = true, conversationId = model.ConversationId, status = normalizedStatus });
         }
 
         // ── AGENT STATUS ──────────────────────────────────────────
@@ -294,5 +350,11 @@ namespace NextHorizon.Controllers
     public class ClaimConversationRequest
     {
         public int ConversationId { get; set; }
+    }
+
+    public class UpdateConversationStatusRequest
+    {
+        public int ConversationId { get; set; }
+        public string Status { get; set; } = string.Empty;
     }
 }

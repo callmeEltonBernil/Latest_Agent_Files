@@ -170,6 +170,18 @@
     padding: 5px 14px; background: #1a1a2e; color: #fff;
     border: none; border-radius: 6px; cursor: pointer;
 }
+.hcc-inactive-warn {
+    background: #fff3cd;
+    border-bottom: 1px solid #ffe69c;
+    color: #856404;
+    padding: 8px 22px;
+    font-size: 12px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.hcc-inactive-warn.show { display: flex; }
 .hcc-body {
     flex: 1; overflow-y: auto; padding: 24px 28px;
     display: flex; flex-direction: column; gap: 18px;
@@ -373,7 +385,7 @@
                 <div class="hcc-timer-wrap">
                     <div class="hcc-timer" id="hccTimer">
                         <i class="fas fa-clock"></i>
-                        <span id="hccTimerVal">3:00</span>
+                        <span id="hccTimerVal">5:00</span>
                     </div>
                     <button class="hcc-end-btn" id="hccEndBtn" onclick="hcEndConversation()">
                         <i class="fas fa-phone-slash"></i> End Conversation
@@ -389,6 +401,8 @@
                 <span><i class="fas fa-exclamation-circle"></i> This ticket is unassigned. Claim it to reply.</span>
                 <button class="hcc-claim-btn" onclick="hcClaim()">Claim Ticket</button>
             </div>
+
+            <div class="hcc-inactive-warn" id="hccInactiveWarn"></div>
 
             <div class="hcc-body" id="hccBody"></div>
 
@@ -491,14 +505,20 @@
     var selId            = null;
     var convEnded        = false;
     var timerInterval    = null;
-    var timerSeconds     = 180;
+    var timerSeconds     = 300;
     var pollInterval     = null;
+    var lastParticipantMessageAt = null;
+    var inactivityEndingRequested = false;
+
+    var MAX_CHAT_SECONDS = 300;
+    var INACTIVITY_WARN_SECONDS = 120;
 
     const COLS = ['#2980b9','#e67e22','#27ae60','#8e44ad','#e74c3c','#16a085','#d35400','#2c3e50'];
     function ac(n) { let h=0; for(let i=0;i<(n||'').length;i++) h=n.charCodeAt(i)+((h<<5)-h); return COLS[Math.abs(h)%COLS.length]; }
     function ini(n) { return (n||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
     function fmtDate(d) { return d ? new Date(d).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'; }
     function clamp(v,min,max) { return Math.max(min,Math.min(max,v)); }
+    function statusNorm(s) { return String(s || '').trim().toLowerCase(); }
 
     /* ── RESIZERS ─────────────────────────────────────────────── */
     function initResizers() {
@@ -555,8 +575,8 @@
     }
 
     function updateStats() {
-        var q = allConversations.filter(function(c) { return c.status !== 'Resolved' && c.isAssigned; }).length;
-        var r = allConversations.filter(function(c) { return c.status === 'Resolved' && c.isAssigned; }).length;
+        var q = allConversations.filter(function(c) { return statusNorm(c.status) !== 'resolved' && c.isAssigned; }).length;
+        var r = allConversations.filter(function(c) { return statusNorm(c.status) === 'resolved' && c.isAssigned; }).length;
         document.getElementById('statQueueing').textContent = q;
         document.getElementById('statResolved').textContent = r;
     }
@@ -564,10 +584,10 @@
     /* ── FILTER & RENDER LIST ─────────────────────────────────── */
     function filtered() {
         var q = (document.getElementById('hclQ')?.value || '').toLowerCase().trim();
-        return allConversations.filter(function(c) {
-            if (activeTab === 'assigned'   && (!c.isAssigned || c.status === 'Resolved')) return false;
+        var rows = allConversations.filter(function(c) {
+            if (activeTab === 'assigned'   && (!c.isAssigned || statusNorm(c.status) === 'resolved')) return false;
             if (activeTab === 'unassigned' && c.isAssigned) return false;
-            if (activeTab === 'resolved'   && (c.status !== 'Resolved' || !c.isAssigned)) return false;
+            if (activeTab === 'resolved'   && (statusNorm(c.status) !== 'resolved' || !c.isAssigned)) return false;
             if (q && !(
                 (c.question || '').toLowerCase().includes(q) ||
                 (c.category || '').toLowerCase().includes(q) ||
@@ -575,6 +595,17 @@
             )) return false;
             return true;
         });
+
+        rows.sort(function(a, b) {
+            if (activeTab === 'resolved') {
+                var aSort = a.endTime ? new Date(a.endTime).getTime() : new Date(a.createdAt).getTime();
+                var bSort = b.endTime ? new Date(b.endTime).getTime() : new Date(b.createdAt).getTime();
+                return bSort - aSort;
+            }
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+
+        return rows;
     }
 
     function renderList() {
@@ -642,14 +673,23 @@
         sb.className = 'hcc-stype-badge ' + (conv.userType || '').toLowerCase();
         document.getElementById('hccMeta').textContent = conv.category + ' · ' + fmtDate(conv.createdAt);
 
+        var isResolved = statusNorm(conv.status) === 'resolved';
+
         // Claim bar
         var claimBar = document.getElementById('hccClaimBar');
         if (!conv.isAssigned) {
             claimBar.classList.add('show');
             document.getElementById('hccInputRow').classList.add('ended');
+            document.getElementById('hccChatIn').placeholder = 'Claim this ticket to reply.';
         } else {
             claimBar.classList.remove('show');
-            document.getElementById('hccInputRow').classList.remove('ended');
+            if (isResolved) {
+                document.getElementById('hccInputRow').classList.add('ended');
+                document.getElementById('hccChatIn').placeholder = 'Conversation is resolved. Unresolve to reply.';
+            } else {
+                document.getElementById('hccInputRow').classList.remove('ended');
+                document.getElementById('hccChatIn').placeholder = 'Type a reply...';
+            }
         }
 
         // Detail panel
@@ -662,13 +702,23 @@
         document.getElementById('hcdIStatus').textContent = conv.status || '—';
         document.getElementById('hcdIDate').textContent  = fmtDate(conv.createdAt);
         document.getElementById('hcdReason').textContent = conv.question || '—';
-        document.getElementById('hcdUpdateSel').value    = conv.status === 'Resolved' ? 'Resolved' : 'active';
+        document.getElementById('hcdUpdateSel').value    = isResolved ? 'Resolved' : 'active';
 
-        // Reset timer
-        convEnded = false;
-        document.getElementById('hccEndBtn').disabled = false;
-        document.getElementById('hccEndBtn').style.opacity = '1';
-        startTimer();
+        // Reset timer and state
+        convEnded = isResolved;
+        inactivityEndingRequested = false;
+        lastParticipantMessageAt = null;
+        document.getElementById('hccEndBtn').disabled = isResolved;
+        document.getElementById('hccEndBtn').style.opacity = isResolved ? '.45' : '1';
+        hideInactivityWarning();
+        if (conv.isAssigned && !isResolved) {
+            startTimer();
+        } else {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            var timerEl = document.getElementById('hccTimerVal');
+            if (timerEl) timerEl.textContent = isResolved ? '0:00' : '5:00';
+        }
 
         // Load messages
         loadMessages(id);
@@ -721,6 +771,29 @@
             body.appendChild(w);
         });
 
+        var latestParticipantMessage = null;
+        messages.forEach(function(m) {
+            if (m.senderRole !== 'Agent') {
+                var dt = m.createdAt ? new Date(m.createdAt) : null;
+                if (dt && !isNaN(dt.getTime())) {
+                    if (!latestParticipantMessage || dt > latestParticipantMessage) {
+                        latestParticipantMessage = dt;
+                    }
+                }
+            }
+        });
+
+        if (latestParticipantMessage) {
+            var hadPrevious = lastParticipantMessageAt instanceof Date;
+            var previousMs = hadPrevious ? lastParticipantMessageAt.getTime() : 0;
+            var currentMs = latestParticipantMessage.getTime();
+            lastParticipantMessageAt = latestParticipantMessage;
+            if (!hadPrevious || currentMs > previousMs) {
+                inactivityEndingRequested = false;
+                hideInactivityWarning();
+            }
+        }
+
         if (!silent || wasAtBottom) body.scrollTop = body.scrollHeight;
     }
 
@@ -736,6 +809,10 @@
         var conv = allConversations.find(function(c) { return c.id === selId; });
         if (conv && !conv.isAssigned) {
             alert('Please claim this ticket first before sending a message.');
+            return;
+        }
+        if (conv && statusNorm(conv.status) === 'resolved') {
+            alert('This conversation is resolved. Unresolve it first to send a message.');
             return;
         }
 
@@ -785,6 +862,10 @@
                 if (conv) { conv.isAssigned = true; conv.agentId = AGENT_USER_ID; }
                 document.getElementById('hccClaimBar').classList.remove('show');
                 document.getElementById('hccInputRow').classList.remove('ended');
+                if (conv && statusNorm(conv.status) !== 'resolved') {
+                    convEnded = false;
+                    startTimer();
+                }
                 renderList();
                 updateStats();
             } else {
@@ -807,6 +888,8 @@
             if (data.success) {
                 var conv = allConversations.find(function(c) { return c.id === selId; });
                 if (conv) conv.status = 'Resolved';
+                document.getElementById('hcdIStatus').textContent = 'Resolved';
+                document.getElementById('hcdUpdateSel').value = 'Resolved';
                 appendSystemMsg('✓ Ticket marked as Resolved.');
                 endConv();
                 updateStats();
@@ -822,16 +905,50 @@
     window.hcSaveStatus = function() {
         if (!selId) return;
         var newStatus = document.getElementById('hcdUpdateSel').value;
-        if (newStatus === 'Resolved') { hcResolve(); return; }
-        var conv = allConversations.find(function(c) { return c.id === selId; });
-        if (conv) conv.status = newStatus;
-        updateStats(); renderList();
+        fetch('/Agent/UpdateConversationStatus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversationId: selId, status: newStatus })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                alert(data.message || 'Could not update status.');
+                return;
+            }
+
+            var conv = allConversations.find(function(c) { return c.id === selId; });
+            if (conv) conv.status = data.status;
+
+            document.getElementById('hcdIStatus').textContent = data.status;
+            document.getElementById('hcdUpdateSel').value = data.status === 'Resolved' ? 'Resolved' : 'active';
+
+            if (data.status === 'Resolved') {
+                appendSystemMsg('✓ Ticket marked as Resolved.');
+                endConv();
+            } else {
+                convEnded = false;
+                document.getElementById('hccInputRow').classList.remove('ended');
+                document.getElementById('hccChatIn').placeholder = 'Type a reply...';
+                var endBtn = document.getElementById('hccEndBtn');
+                if (endBtn) { endBtn.disabled = false; endBtn.style.opacity = '1'; }
+                startTimer();
+                if (pollInterval) clearInterval(pollInterval);
+                pollInterval = setInterval(function() {
+                    if (selId) loadMessages(selId, true);
+                }, 5000);
+            }
+
+            updateStats();
+            renderList();
+        })
+        .catch(function() { alert('Could not reach server.'); });
     };
 
     /* ── TIMER ────────────────────────────────────────────────── */
     function startTimer() {
         clearInterval(timerInterval);
-        timerSeconds = 180;
+        timerSeconds = MAX_CHAT_SECONDS;
         updateTimerDisplay();
         timerInterval = setInterval(function() {
             timerSeconds--;
@@ -850,6 +967,49 @@
             if (timerSeconds <= 30) wrap.classList.add('danger');
             else if (timerSeconds <= 60) wrap.classList.add('warning');
         }
+        checkParticipantInactivity();
+    }
+
+    function checkParticipantInactivity() {
+        var conv = allConversations.find(function(c) { return c.id === selId; });
+        if (!selId || convEnded || !lastParticipantMessageAt || !conv || !conv.isAssigned || statusNorm(conv.status) === 'resolved') {
+            hideInactivityWarning();
+            return;
+        }
+
+        var inactiveSeconds = Math.floor((Date.now() - lastParticipantMessageAt.getTime()) / 1000);
+        if (inactiveSeconds < INACTIVITY_WARN_SECONDS) {
+            hideInactivityWarning();
+            return;
+        }
+
+        var remaining = MAX_CHAT_SECONDS - inactiveSeconds;
+        if (remaining <= 0) {
+            if (!inactivityEndingRequested) {
+                inactivityEndingRequested = true;
+                appendSystemMsg('⏱ Conversation ended automatically due to participant inactivity.');
+                hcEndConversation();
+            }
+            return;
+        }
+
+        var warn = document.getElementById('hccInactiveWarn');
+        if (!warn) return;
+        warn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Participant inactive for ' + fmtMmSs(inactiveSeconds) + '. Auto-end in ' + fmtMmSs(remaining) + ' if no reply.';
+        warn.classList.add('show');
+    }
+
+    function hideInactivityWarning() {
+        var warn = document.getElementById('hccInactiveWarn');
+        if (!warn) return;
+        warn.classList.remove('show');
+        warn.textContent = '';
+    }
+
+    function fmtMmSs(totalSeconds) {
+        var m = Math.floor(totalSeconds / 60);
+        var s = totalSeconds % 60;
+        return m + ':' + (s < 10 ? '0' : '') + s;
     }
 
     function timerExpired() {
@@ -862,7 +1022,11 @@
     function endConv() {
         convEnded = true;
         clearInterval(timerInterval);
+        timerInterval = null;
         if (pollInterval) clearInterval(pollInterval);
+        hideInactivityWarning();
+        var timerEl = document.getElementById('hccTimerVal');
+        if (timerEl) timerEl.textContent = '0:00';
         document.getElementById('hccInputRow').classList.add('ended');
         document.getElementById('hccChatIn').placeholder = 'Conversation has ended.';
         var endBtn = document.getElementById('hccEndBtn');
@@ -881,8 +1045,30 @@
 
     window.hcEndConversation = function() {
         if (convEnded) return;
-        appendSystemMsg('✓ Conversation ended by ' + AGENT_NAME + '.');
-        endConv();
+        fetch('/Agent/EndConversation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversationId: selId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var conv = allConversations.find(function(c) { return c.id === selId; });
+                if (conv) {
+                    conv.status = 'Resolved';
+                    conv.endTime = new Date().toISOString();
+                }
+                document.getElementById('hcdIStatus').textContent = 'Resolved';
+                document.getElementById('hcdUpdateSel').value = 'Resolved';
+                appendSystemMsg('✓ Conversation ended by ' + AGENT_NAME + '.');
+                endConv();
+                updateStats();
+                renderList();
+            } else {
+                alert(data.message || 'Could not end conversation.');
+            }
+        })
+        .catch(function() { alert('Could not reach server.'); });
     };
 
     /* ── AGENT STATUS ─────────────────────────────────────────── */
