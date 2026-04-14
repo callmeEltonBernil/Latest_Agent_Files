@@ -78,6 +78,53 @@
     width: 3px; background: #1a1a2e; border-radius: 0 3px 3px 0;
 }
 .hcl-card.unassigned { border-left: 3px solid #f59e0b; }
+.hcl-slots {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 6px 12px 18px;
+}
+.hcl-slot {
+    border: 1px solid #e8e8e8;
+    border-radius: 12px;
+    padding: 14px 16px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    cursor: pointer;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.hcl-slot.empty {
+    cursor: default;
+    background: #fafbfc;
+    color: #bbb;
+}
+.hcl-slot.active {
+    border-color: #1a1a2e;
+    box-shadow: 0 4px 12px rgba(26, 26, 46, 0.12);
+}
+.hcl-slot-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: #999;
+}
+.hcl-slot-body {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+.hcl-slot-meta {
+    font-size: 10.5px;
+    color: #bbb;
+}
+.hcl-slot-name {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #1a1a2e;
+}
 .hcl-av {
     width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
@@ -630,6 +677,46 @@
         var rows = filtered();
         var list = document.getElementById('hclList');
         list.innerHTML = '';
+
+        if (activeTab === 'assigned') {
+            var slotsWrap = document.createElement('div');
+            slotsWrap.className = 'hcl-slots';
+            var slots = rows.slice(0, 3);
+
+            for (var i = 0; i < 3; i++) {
+                var conv = slots[i];
+                var slot = document.createElement('div');
+                var isActive = conv && conv.id === selId;
+                slot.className = 'hcl-slot' + (isActive ? ' active' : '') + (conv ? '' : ' empty');
+
+                if (conv) {
+                    var color = ac(conv.category || 'ticket');
+                    slot.onclick = (function(id) { return function() { openConversation(id); }; })(conv.id);
+                    slot.innerHTML =
+                        '<div class="hcl-slot-title">Chat Slot ' + (i + 1) + '</div>' +
+                        '<div class="hcl-slot-body">' +
+                            '<div class="hcl-av" style="background:' + color + '">' + ini(conv.category) + '</div>' +
+                            '<div class="hcl-body">' +
+                                '<div class="hcl-row1">' +
+                                    '<span class="hcl-slot-name">Ticket #' + conv.id + '</span>' +
+                                    '<span class="hcl-stype ' + (conv.userType || '').toLowerCase() + '">' + (conv.userType || '—') + '</span>' +
+                                '</div>' +
+                                '<div class="hcl-subject">' + (conv.question || '—') + '</div>' +
+                                '<div class="hcl-slot-meta">Conversation ID: ' + conv.id + '</div>' +
+                            '</div>' +
+                        '</div>';
+                } else {
+                    slot.innerHTML =
+                        '<div class="hcl-slot-title">Chat Slot ' + (i + 1) + '</div>' +
+                        '<div class="hcl-slot-meta">No ticket assigned</div>';
+                }
+
+                slotsWrap.appendChild(slot);
+            }
+
+            list.appendChild(slotsWrap);
+            return;
+        }
 
         if (!rows.length) {
             list.innerHTML = '<div style="padding:40px;text-align:center;color:#bbb;font-size:13px">No tickets found.</div>';
