@@ -775,6 +775,30 @@
             .then(function(data) {
                 if (!data.success) { showListError('Failed to load tickets.'); return; }
                 allConversations = data.conversations || [];
+
+                // Restore ACW start/end timestamps from server so timers survive refresh
+                allConversations.forEach(function(conv) {
+                    try {
+                        if (conv.acwStart) {
+                            var d = new Date(conv.acwStart);
+                            if (!isNaN(d.getTime())) {
+                                acwStartByConversation[conv.id] = d.getTime();
+                                // ensure ACW manual flag is not set (server-driven)
+                                if (acwManualStatusByConversation[conv.id]) delete acwManualStatusByConversation[conv.id];
+                                return;
+                            }
+                        }
+                        if (conv.acwEnd) {
+                            // ACW already ended — mark as expired so UI shows ended state
+                            acwStartByConversation[conv.id] = 0;
+                            if (acwManualStatusByConversation[conv.id]) delete acwManualStatusByConversation[conv.id];
+                            return;
+                        }
+                        // No ACW recorded
+                        if (acwStartByConversation[conv.id]) delete acwStartByConversation[conv.id];
+                        if (acwManualStatusByConversation[conv.id]) delete acwManualStatusByConversation[conv.id];
+                    } catch (e) { /* ignore malformed dates */ }
+                });
                 updateStats();
                 renderList();
 
@@ -790,7 +814,23 @@
 
                 if (initialLoad) {
                     var first = allConversations.find(function(c) { return c.isAssigned; });
-                    if (first) openConversation(first.id);
+                    if (first) {
+                        // If server didn't include ACW timestamps for this conversation, fetch them
+                        // so the client can initialize the ACW timer correctly after a full page refresh.
+                        if (!first.acwStart && !first.acwEnd) {
+                            fetch('/Agent/GetConversationAcw?conversationId=' + first.id)
+                                .then(function(r) { return r.json(); })
+                                .then(function(d) {
+                                    if (d && d.success && d.acwStart) {
+                                        try { acwStartByConversation[first.id] = new Date(d.acwStart).getTime(); } catch (e) { }
+                                    }
+                                    openConversation(first.id);
+                                })
+                                .catch(function() { openConversation(first.id); });
+                        } else {
+                            openConversation(first.id);
+                        }
+                    }
                 }
             })
             .catch(function() { showListError('Could not reach server.'); });
@@ -814,7 +854,8 @@
         var rows = allConversations.filter(function(c) {
             if (activeTab === 'assigned'   && (!c.isAssigned || statusNorm(c.status) === 'resolved')) return false;
             if (activeTab === 'unassigned' && c.isAssigned) return false;
-            if (activeTab === 'resolved'   && (statusNorm(c.status) !== 'resolved' || !c.isAssigned)) return false;
+            // Resolved tab should list resolved conversations regardless of assignment state
+            if (activeTab === 'resolved'   && statusNorm(c.status) !== 'resolved') return false;
             if (q && !(
                 (c.question || '').toLowerCase().includes(q) ||
                 (c.category || '').toLowerCase().includes(q) ||
@@ -848,6 +889,12 @@
 
         if (activeTab === 'assigned') {
             var slots = rows.slice(0, 3);
+
+            // Remove any previously rendered cards or no-results placeholders so only the 3 slots remain
+            list.querySelectorAll('.hcl-card, .hcl-no-results').forEach(function(el) { el.remove(); });
+
+            // Ensure the static slot elements are visible again (they may have been hidden when viewing other tabs)
+            list.querySelectorAll('.hcl-slot').forEach(function(el) { el.style.display = ''; });
 
             // Populate the 3 static chat slots
             for (var i = 0; i < 3; i++) {
@@ -892,14 +939,15 @@
         }
 
         // For non-assigned tabs, clear slots and show ticket list
-        var slotsContainer = list.querySelector('.hcl-slot');
-        if (slotsContainer) {
-            // Hide all slots
-            list.querySelectorAll('.hcl-slot').forEach(function(el) { el.style.display = 'none'; });
-        }
+        // Hide the static slots (they are only used for the assigned tab)
+        list.querySelectorAll('.hcl-slot').forEach(function(el) { el.style.display = 'none'; });
+
+        // Remove any previously rendered cards or no-results placeholders to avoid duplicates
+        list.querySelectorAll('.hcl-card, .hcl-no-results').forEach(function(el) { el.remove(); });
 
         if (!rows.length) {
             var noResultsMsg = document.createElement('div');
+            noResultsMsg.className = 'hcl-no-results';
             noResultsMsg.style.cssText = 'padding:40px;text-align:center;color:#bbb;font-size:13px';
             noResultsMsg.textContent = 'No tickets found.';
             list.appendChild(noResultsMsg);
@@ -1136,6 +1184,27 @@
             })
         })
         .then(function(r) { return r.json(); })
+        .then(function(data) {
+            // If server indicated ACW ended due to manual Available transition,
+            // update client UI to reflect ACW end and clear conversation linkage.
+            if (data) {
+                if (data.acwEnded || (data.status && data.status.toLowerCase() === 'available')) {
+                    try {
+                        acwStartByConversation[conversationId] = 0;
+                        updateAcwState(false, conversationId);
+                        convEnded = false;
+                        var inputRow = document.getElementById('hccInputRow');
+                        if (inputRow) inputRow.classList.remove('ended');
+                        var chatIn = document.getElementById('hccChatIn');
+                        if (chatIn) chatIn.placeholder = 'Type a reply...';
+                        var endBtn = document.getElementById('hccEndBtn');
+                        if (endBtn) { endBtn.disabled = false; endBtn.style.opacity = '1'; }
+                        updateStats();
+                        renderList();
+                    } catch (e) { /* ignore UI update errors */ }
+                }
+            }
+        })
         .catch(function(e) { console.error('Chat status update failed:', e); });
     }
 
@@ -1446,7 +1515,12 @@
                 var conv = allConversations.find(function(c) { return c.id === selId; });
                 if (conv) {
                     conv.status = 'Resolved';
-                    conv.endTime = new Date().toISOString();
+                    // prefer server-provided endTime if available
+                    conv.endTime = data.endTime ? new Date(data.endTime).toISOString() : new Date().toISOString();
+                    // if server returned ACW timestamps, use them to set client timer
+                    if (data.acwStart) {
+                        try { acwStartByConversation[selId] = new Date(data.acwStart).getTime(); } catch (e) { /* ignore */ }
+                    }
                 }
                 document.getElementById('hcdIStatus').textContent = 'Resolved';
                 applyResolveUiState(true);
@@ -1478,6 +1552,41 @@
             if (!data.success) {
                 alert(data.message || 'Could not update status.');
                 return;
+            }
+            // If server returned ACW timestamps, use them to restore timer precisely
+            if (data.acwStart) {
+                try { acwStartByConversation[selId] = new Date(data.acwStart).getTime(); } catch (e) { /* ignore and keep existing start */ }
+            }
+            if (data.status === 'Resolved') {
+                updateAcwState(true, selId);
+                persistChatStatus('acw', selId);
+                persistAcwNotes();
+                appendSystemMsg('✓ Ticket marked as Resolved.');
+                endConv();
+                updateStats();
+                renderList();
+            } else {
+                // Determine desired agent chat status from dropdown. If the agent chose Available
+                // persist that so the server can stamp ACW end and clear ConversationID.
+                var desiredAgentStatus = (document.getElementById('agentStatusSelect') || {}).value || 'inchat';
+                // Mark ACW ended locally immediately so UI and timer stop; server will also persist end timestamp
+                acwStartByConversation[selId] = 0;
+                updateAcwState(false, selId);
+                if (desiredAgentStatus === 'available') {
+                    persistChatStatus('available', selId);
+                } else {
+                    persistChatStatus('inchat', selId);
+                }
+                convEnded = false;
+                document.getElementById('hccInputRow').classList.remove('ended');
+                document.getElementById('hccChatIn').placeholder = 'Type a reply...';
+                var endBtn = document.getElementById('hccEndBtn');
+                if (endBtn) { endBtn.disabled = false; endBtn.style.opacity = '1'; }
+                startTimer();
+                if (pollInterval) clearInterval(pollInterval);
+                pollInterval = setInterval(function() {
+                    if (selId) loadMessages(selId, true);
+                }, MESSAGE_POLL_MS);
             }
 
             var conv = allConversations.find(function(c) { return c.id === selId; });
@@ -1658,7 +1767,7 @@
                 var conv = allConversations.find(function(c) { return c.id === selId; });
                 if (conv) {
                     conv.status = 'Resolved';
-                    conv.endTime = new Date().toISOString();
+                    conv.endTime = data.endTime ? new Date(data.endTime).toISOString() : new Date().toISOString();
                 }
                 document.getElementById('hcdIStatus').textContent = 'Resolved';
                 applyResolveUiState(true);
@@ -1699,14 +1808,15 @@
                 }
             }
         }
-        if (!selId) return;
+       if (!selId) return;
+        var conversationIdAtCall = selId;
         fetch('/Agent/UpdateAgentStatus', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 agentName: AGENT_NAME,
                 status: status,
-                conversationId: selId,
+                conversationId: conversationIdAtCall,
                 isChatStatus: true,
                 chatSlot: getSelectedChatSlot(),
                 agentUserId: AGENT_USER_ID
@@ -1716,6 +1826,52 @@
         .then(function(data) {
             if (!data || !data.success) {
                 alert((data && (data.message || data.detail)) || 'Failed to update chat status.');
+                return;
+            }
+
+            // ACW manually ended by agent changing to Available
+            if (data.acwEnded) {
+                // Stamp the local ACW start as 0 so the timer stops
+                acwStartByConversation[conversationIdAtCall] = 0;
+                delete acwManualStatusByConversation[conversationIdAtCall];
+
+                // Collapse ACW section
+                var acwSec = document.getElementById('acwSection');
+                var acwNotes = document.getElementById('acwNotes');
+                var acwExpired = document.getElementById('acwExpired');
+                if (acwSec) acwSec.classList.remove('show');
+                if (acwNotes) acwNotes.disabled = true;
+                if (acwExpired) acwExpired.classList.remove('show');
+                clearInterval(acwInterval);
+                acwInterval = null;
+
+                // Hide the ACW option from the dropdown
+                var acwOpt = sel.querySelector('option[value="acw"]');
+                if (acwOpt) acwOpt.hidden = true;
+
+                // Remove the conversation from the local list so the slot clears
+                allConversations = allConversations.filter(function(c) {
+                    return c.id !== conversationIdAtCall;
+                });
+                delete conversationSlotById[conversationIdAtCall];
+
+                // Deselect and reset the chat/detail panels
+                selId = null;
+                convEnded = false;
+                clearInterval(timerInterval);
+                timerInterval = null;
+                clearInterval(pollInterval);
+                pollInterval = null;
+
+                document.getElementById('hccEmpty').style.display = '';
+                var cp = document.getElementById('hccPanel');
+                if (cp) cp.style.display = 'none';
+                document.getElementById('hcdEmpty').style.display = '';
+                var dp = document.getElementById('hcDetailPanel');
+                if (dp) dp.style.display = 'none';
+
+                updateStats();
+                renderList();
             }
         })
         .catch(function() {
@@ -1739,18 +1895,28 @@
 
     /* ── QUICK STATUS ─────────────────────────────────────────── */
     window.updateQuickStatus = function() {
-        var sel = document.getElementById('hclQuickStatusSelect');
-        if (!sel) return;
+    var sel = document.getElementById('hclQuickStatusSelect');
+    if (!sel) return;
+    var status = sel.value;
+    // Block if any active chat exists
+    var hasActive = allConversations.some(function(c) {
+        return c.isAssigned && c.status && c.status.toLowerCase() === 'active';
+    });
+    if (hasActive && status !== 'available') {
+        alert('Cannot change agent status while a conversation is Active.');
+        sel.value = 'available';
+        var availOpt = sel.querySelector('option[value="available"]');
+        var availColor = availOpt ? availOpt.getAttribute('data-color') : '#27ae60';
+        sel.style.color = availColor;
+        return;
+    }
+    var selectedOption = sel.options[sel.selectedIndex];
+    var color = selectedOption.getAttribute('data-color') || '#333';
+    // Smooth color transition
+    sel.style.transition = 'color 0.3s ease';
+    sel.style.color = color;
 
-        var status = sel.value;
-        var selectedOption = sel.options[sel.selectedIndex];
-        var color = selectedOption.getAttribute('data-color') || '#333';
-
-        // Smooth color transition
-        sel.style.transition = 'color 0.3s ease';
-        sel.style.color = color;
-
-        fetch('/Agent/UpdateAgentStatus', {
+    fetch('/Agent/UpdateAgentStatus', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ agentName: AGENT_NAME, status: status, isChatStatus: false, agentUserId: AGENT_USER_ID })

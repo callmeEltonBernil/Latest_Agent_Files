@@ -38,5 +38,13 @@ namespace NextHorizon.Models
         [Required]
         [MaxLength(20)]
         public string AgentStatus { get; set; } = "Online";
+
+        // Optional fields used by AgentController for ACW tracking and notes
+        public DateTime? ACWStartTime { get; set; }
+        public DateTime? ACWEndTime { get; set; }
+
+        [MaxLength(2000)]
+        public string? Notes { get; set; }
+        public DateTime? NotesLastUpdatedAt { get; set; }
     }
 }

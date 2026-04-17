@@ -3,6 +3,8 @@ using NextHorizon.Models;
 using NextHorizon.Filters;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Data;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace NextHorizon.Controllers
 {
@@ -10,10 +12,18 @@ namespace NextHorizon.Controllers
     public class AgentController : Controller
     {
         private readonly AppDbContext _context;
+        private readonly IMemoryCache _cache;
 
-        public AgentController(AppDbContext context)
+        public AgentController(AppDbContext context, IMemoryCache cache)
         {
             _context = context;
+            _cache = cache;
+        }
+
+        private string GetConversationsCacheKey(int userId) => $"GetConversations_{userId}";
+        private void InvalidateConversationsCache(int userId)
+        {
+            try { _cache?.Remove(GetConversationsCacheKey(userId)); } catch { }
         }
 
         public IActionResult HelpCenter()
@@ -81,8 +91,6 @@ namespace NextHorizon.Controllers
         }
 
         // ── CONVERSATIONS ─────────────────────────────────────────
-        // SupportFAQs is the real conversation table.
-        // SupportMessages.ConversationId → SupportFAQs.Id
 
         [HttpGet]
         public async Task<IActionResult> GetConversations()
@@ -91,11 +99,56 @@ namespace NextHorizon.Controllers
             if (userId == 0)
                 return Json(new { success = false, message = "Not logged in." });
 
-            // Pull conversations assigned to this agent OR unassigned (agent can claim)
-            var conversations = await _context.SupportFAQs
+            var convos = await _context.SupportFAQs
                 .Where(f => f.AgentId == userId || f.AgentId == null)
                 .OrderByDescending(f => f.CreatedAt)
-                .Select(f => new {
+                .ToListAsync();
+
+            var results = new List<object>();
+
+            var convoIds = convos.Select(c => c.Id).ToList();
+            var latestAgents = new List<Models.Agent>();
+            if (convoIds.Count > 0)
+            {
+                latestAgents = await _context.Agents
+                    .Where(a => a.ConversationID.HasValue && convoIds.Contains(a.ConversationID.Value))
+                    .GroupBy(a => a.ConversationID.Value)
+                    .Select(g => g.OrderByDescending(a => a.ChatID).FirstOrDefault())
+                    .ToListAsync();
+            }
+
+            var latestByConvo = latestAgents
+                .Where(a => a != null && a.ConversationID.HasValue)
+                .ToDictionary(a => a.ConversationID.Value, a => a);
+
+            foreach (var f in convos)
+            {
+                DateTime? acwStart = null;
+                DateTime? acwEnd = null;
+                if (latestByConvo.TryGetValue(f.Id, out var agentRow) && agentRow != null)
+                {
+                    acwStart = agentRow.ACWStartTime;
+                    acwEnd = agentRow.ACWEndTime;
+                }
+
+                if (acwStart.HasValue && !acwEnd.HasValue)
+                {
+                    var cap = acwStart.Value.AddMinutes(2);
+                    if (DateTime.Now > cap)
+                    {
+                        acwEnd = cap;
+                        try
+                        {
+                            await _context.Database.ExecuteSqlRawAsync(
+                                "UPDATE dbo.Agents SET ACWEndTime = {0} WHERE ConversationID = {1} AND (ACWEndTime IS NULL OR ACWEndTime < ACWStartTime)",
+                                acwEnd, f.Id);
+                        }
+                        catch { }
+                    }
+                }
+
+                results.Add(new
+                {
                     id = f.Id,
                     category = f.Category,
                     question = f.Question,
@@ -105,11 +158,13 @@ namespace NextHorizon.Controllers
                     createdAt = f.CreatedAt,
                     startTime = f.StartTime,
                     endTime = f.EndTime,
+                    acwStart = acwStart,
+                    acwEnd = acwEnd,
                     isAssigned = f.AgentId == userId
-                })
-                .ToListAsync();
+                });
+            }
 
-            return Json(new { success = true, conversations });
+            return Json(new { success = true, conversations = results });
         }
 
         [HttpGet]
@@ -119,7 +174,6 @@ namespace NextHorizon.Controllers
             if (userId == 0)
                 return Json(new { success = false, message = "Not logged in." });
 
-            // Allow access if assigned to this agent OR unassigned
             var conversation = await _context.SupportFAQs
                 .FirstOrDefaultAsync(f => f.Id == conversationId &&
                     (f.AgentId == userId || f.AgentId == null));
@@ -143,7 +197,6 @@ namespace NextHorizon.Controllers
             return Json(new { success = true, messages });
         }
 
-        // Claim an unassigned conversation
         [HttpPost]
         public async Task<IActionResult> ClaimConversation([FromBody] ClaimConversationRequest model)
         {
@@ -164,8 +217,9 @@ namespace NextHorizon.Controllers
             conversation.StartTime = DateTime.Now;
             await _context.SaveChangesAsync();
             await SetConversationChatStatusAsync(userId, HttpContext.Session.GetString("FullName") ?? string.Empty, model.ConversationId, "In Chat", null, null);
+            InvalidateConversationsCache(userId);
 
-            return Json(new { success = true, conversationId = model.ConversationId });
+            return Json(new { success = true, conversationId = model.ConversationId, endTime = conversation.EndTime });
         }
 
         [HttpPost]
@@ -178,10 +232,8 @@ namespace NextHorizon.Controllers
             if (model == null || model.ConversationId <= 0 || string.IsNullOrWhiteSpace(model.MessageText))
                 return BadRequest(new { success = false, message = "Invalid request." });
 
-            // Allow send only if assigned to this agent
             var conversation = await _context.SupportFAQs
-                .FirstOrDefaultAsync(f => f.Id == model.ConversationId &&
-                    f.AgentId == userId);
+                .FirstOrDefaultAsync(f => f.Id == model.ConversationId && f.AgentId == userId);
 
             if (conversation == null)
                 return Json(new { success = false, message = "Conversation not found or not assigned to you." });
@@ -200,6 +252,7 @@ namespace NextHorizon.Controllers
 
             _context.SupportMessages.Add(message);
             await _context.SaveChangesAsync();
+            InvalidateConversationsCache(userId);
 
             return Json(new
             {
@@ -213,7 +266,6 @@ namespace NextHorizon.Controllers
             });
         }
 
-        // Resolve a conversation
         [HttpPost]
         public async Task<IActionResult> ResolveConversation([FromBody] ClaimConversationRequest model)
         {
@@ -233,8 +285,9 @@ namespace NextHorizon.Controllers
             var agentName = HttpContext.Session.GetString("FullName") ?? string.Empty;
             await UpdateAcwTrackingAsync(model.ConversationId, null, agentName, userId, true);
             await SetConversationChatStatusAsync(userId, agentName, model.ConversationId, "ACW", null, null);
+            InvalidateConversationsCache(userId);
 
-            return Json(new { success = true, conversationId = model.ConversationId });
+            return Json(new { success = true, conversationId = model.ConversationId, endTime = conversation.EndTime });
         }
 
         [HttpPost]
@@ -253,7 +306,6 @@ namespace NextHorizon.Controllers
             if (conversation == null)
                 return Json(new { success = false, message = "Conversation not found." });
 
-            // Persist end-of-conversation state in existing SupportFAQs columns
             conversation.Status = "Resolved";
             conversation.EndTime = DateTime.Now;
             await _context.SaveChangesAsync();
@@ -261,7 +313,21 @@ namespace NextHorizon.Controllers
             await UpdateAcwTrackingAsync(model.ConversationId, null, agentName, userId, true);
             await SetConversationChatStatusAsync(userId, agentName, model.ConversationId, "ACW", null, null);
 
-            return Json(new { success = true, conversationId = model.ConversationId });
+            InvalidateConversationsCache(userId);
+
+            var latestAgentRow = await _context.Agents
+                .Where(a => a.ConversationID == model.ConversationId)
+                .OrderByDescending(a => a.ChatID)
+                .FirstOrDefaultAsync();
+
+            return Json(new
+            {
+                success = true,
+                conversationId = model.ConversationId,
+                endTime = conversation.EndTime,
+                acwStart = latestAgentRow?.ACWStartTime,
+                acwEnd = latestAgentRow?.ACWEndTime
+            });
         }
 
         [HttpPost]
@@ -297,16 +363,47 @@ namespace NextHorizon.Controllers
             var chatStatus = normalizedStatus == "Resolved" ? "ACW" : "In Chat";
             var agentName = HttpContext.Session.GetString("FullName") ?? string.Empty;
             if (normalizedStatus == "Resolved")
-            {
                 await UpdateAcwTrackingAsync(model.ConversationId, null, agentName, userId, true);
-            }
             else
-            {
                 await UpdateAcwTrackingAsync(model.ConversationId, null, agentName, userId, false);
-            }
+
             await SetConversationChatStatusAsync(userId, agentName, model.ConversationId, chatStatus, null, null);
 
-            return Json(new { success = true, conversationId = model.ConversationId, status = normalizedStatus });
+            InvalidateConversationsCache(userId);
+
+            var latestAgentRow = await _context.Agents
+                .Where(a => a.ConversationID == model.ConversationId)
+                .OrderByDescending(a => a.ChatID)
+                .FirstOrDefaultAsync();
+
+            DateTime? acwStart = latestAgentRow?.ACWStartTime;
+            DateTime? acwEnd = latestAgentRow?.ACWEndTime;
+
+            if (acwStart.HasValue && !acwEnd.HasValue)
+            {
+                var cap = acwStart.Value.AddMinutes(2);
+                if (DateTime.Now > cap)
+                {
+                    acwEnd = cap;
+                    try
+                    {
+                        await _context.Database.ExecuteSqlRawAsync(
+                            "UPDATE dbo.Agents SET ACWEndTime = {0} WHERE ConversationID = {1} AND (ACWEndTime IS NULL OR ACWEndTime < ACWStartTime)",
+                            acwEnd, model.ConversationId);
+                    }
+                    catch { }
+                }
+            }
+
+            return Json(new
+            {
+                success = true,
+                conversationId = model.ConversationId,
+                status = normalizedStatus,
+                endTime = conversation.EndTime,
+                acwStart,
+                acwEnd
+            });
         }
 
         // ── AGENT STATUS ──────────────────────────────────────────
@@ -324,6 +421,29 @@ namespace NextHorizon.Controllers
 
             var status = ToUiAgentStatus(agent?.AgentStatus ?? "Available");
             return Json(new { success = true, status = status });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetConversationAcw(int conversationId)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId") ?? 0;
+            if (userId == 0)
+                return Json(new { success = false, message = "Not logged in." });
+
+            if (conversationId <= 0)
+                return BadRequest(new { success = false, message = "Invalid conversation id." });
+
+            var latestAgentRow = await _context.Agents
+                .Where(a => a.ConversationID == conversationId)
+                .OrderByDescending(a => a.ChatID)
+                .FirstOrDefaultAsync();
+
+            return Json(new
+            {
+                success = true,
+                acwStart = latestAgentRow?.ACWStartTime,
+                acwEnd = latestAgentRow?.ACWEndTime
+            });
         }
 
         [HttpPost]
@@ -358,22 +478,148 @@ namespace NextHorizon.Controllers
                             return Json(new { success = false, message = "Conversation not found." });
 
                         if (!string.Equals(convo.Status, "Resolved", StringComparison.OrdinalIgnoreCase))
-                        {
-                            return Json(new
-                            {
-                                success = false,
-                                message = "ACW can only start after chat is resolved."
-                            });
-                        }
+                            return Json(new { success = false, message = "ACW can only start after chat is resolved." });
                     }
 
+                    // ── ACW → Available: stamp ACWEndTime, clear ConversationID ──────
+                    if (string.Equals(normalizedChatStatus, "Available", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var now = DateTime.Now;
+
+                        // Stamp ACWEndTime in dbo.Agents
+                        await _context.Database.ExecuteSqlRawAsync(@"
+IF OBJECT_ID('dbo.Agents', 'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH('dbo.Agents', 'ACWEndTime') IS NOT NULL
+    BEGIN
+        UPDATE dbo.Agents
+        SET ACWEndTime = ISNULL(ACWEndTime, {0})
+        WHERE ConversationID = {1}
+          AND (ACWEndTime IS NULL OR ACWEndTime < ACWStartTime);
+    END
+END", now, model.ConversationId);
+
+                        // Stamp ACWEndTime + clear ConversationID in ChatSlot tables
+                        for (var slot = 1; slot <= 3; slot++)
+                        {
+                            var tableName = $"dbo.ChatSlot_{slot}";
+                            var slotSql = $@"
+IF OBJECT_ID('{tableName}', 'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
+    BEGIN
+        IF COL_LENGTH('{tableName}', 'ACWEndTime') IS NOT NULL
+        BEGIN
+            UPDATE {tableName}
+            SET ACWEndTime = ISNULL(ACWEndTime, {{0}}),
+                ChatStatus  = 'Available',
+                ConversationID = NULL
+            WHERE ConversationID = {{1}}
+              AND ({{2}} <= 0 OR AgentId = {{2}});
+
+            IF COL_LENGTH('{tableName}', 'LastUpdatedAt') IS NOT NULL
+            BEGIN
+                UPDATE {tableName}
+                SET LastUpdatedAt = GETDATE()
+                WHERE ({{2}} <= 0 OR AgentId = {{2}})
+                  AND ConversationID IS NULL;
+            END
+        END
+        ELSE
+        BEGIN
+            UPDATE {tableName}
+            SET ChatStatus  = 'Available',
+                ConversationID = NULL
+            WHERE ConversationID = {{1}}
+              AND ({{2}} <= 0 OR AgentId = {{2}});
+        END
+    END
+END";
+                            await _context.Database.ExecuteSqlRawAsync(slotSql, now, model.ConversationId, userId);
+                        }
+
+                        // Clear ConversationID on dbo.Agents rows and set ChatStatus = Available
+                        var agentRows = await _context.Agents
+                            .Where(a => a.ConversationID == model.ConversationId
+                                && (userId <= 0 || a.AgentID == userId))
+                            .ToListAsync();
+
+                        foreach (var row in agentRows)
+                        {
+                            row.ConversationID = null;
+                            row.ChatStatus = "Available";
+                            row.AgentStatus = "Available";
+                        }
+
+                        if (agentRows.Count > 0)
+                            await _context.SaveChangesAsync();
+
+                        return Json(new
+                        {
+                            success = true,
+                            status = "Available",
+                            acwEnded = true,
+                            acwEndTime = now
+                        });
+                    }
+                    // ── End ACW → Available special case ───────────────────────────
+
                     await SetConversationChatStatusAsync(userId, resolvedAgentName, model.ConversationId, normalizedChatStatus, model.ChatSlot, null);
+
+                    try
+                    {
+                        await UpdateAcwTrackingAsync(model.ConversationId, model.ChatSlot, resolvedAgentName, userId,
+                            string.Equals(normalizedChatStatus, "ACW", StringComparison.OrdinalIgnoreCase));
+                        if (model.ChatSlot.HasValue)
+                            await UpdateChatSlotAcwTimesAsync(model.ChatSlot.Value, model.ConversationId, resolvedAgentName, userId,
+                                string.Equals(normalizedChatStatus, "ACW", StringComparison.OrdinalIgnoreCase));
+                    }
+                    catch { }
+
+                    InvalidateConversationsCache(userId);
                     return Json(new { success = true, status = normalizedChatStatus });
                 }
 
+                // ── Agent-level status update ──────────────────────────
                 var normalizedAgentStatus = NormalizeAgentStatus(model.Status);
+
+                var hasActiveChat = await _context.Agents
+                    .AnyAsync(a => userId != 0 && a.AgentID == userId && a.ChatStatus == "Active");
+
+                if (hasActiveChat && normalizedAgentStatus != "Available")
+                    return Json(new { success = false, message = "Cannot change agent status while a conversation is Active." });
+
                 await UpdateAllChatSlotAgentStatusAsync(resolvedAgentName, userId, normalizedAgentStatus);
                 await UpsertAgentStatusRowsAsync(userId, resolvedAgentName, normalizedAgentStatus);
+
+                var derivedChatStatus = AgentStatusToChatStatus(normalizedAgentStatus);
+                if (derivedChatStatus != null)
+                {
+                    for (int slot = 1; slot <= 3; slot++)
+                    {
+                        var tableName = $"dbo.ChatSlot_{slot}";
+                        var sql = $@"
+IF OBJECT_ID('{tableName}', 'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH('{tableName}', 'ChatStatus') IS NOT NULL
+    BEGIN
+        UPDATE {tableName}
+        SET ChatStatus = {{0}}
+        WHERE ({{1}} > 0 AND AgentId = {{1}})
+           OR ({{1}} <= 0 AND LOWER(LTRIM(RTRIM(ISNULL(AgentName,'')))) = LOWER(LTRIM(RTRIM({{2}}))));
+        IF COL_LENGTH('{tableName}', 'ChatStatusLastUpdatedAt') IS NOT NULL
+        BEGIN
+            UPDATE {tableName}
+            SET ChatStatusLastUpdatedAt = GETDATE()
+            WHERE ({{1}} > 0 AND AgentId = {{1}})
+               OR ({{1}} <= 0 AND LOWER(LTRIM(RTRIM(ISNULL(AgentName,'')))) = LOWER(LTRIM(RTRIM({{2}}))));
+        END
+    END
+END";
+                        await _context.Database.ExecuteSqlRawAsync(sql, derivedChatStatus, userId, resolvedAgentName);
+                    }
+                }
+
                 return Json(new { success = true, status = ToUiAgentStatus(normalizedAgentStatus) });
             }
             catch (Exception ex)
@@ -419,28 +665,19 @@ namespace NextHorizon.Controllers
             userId = await ResolveAgentUserIdAsync(userId, agentName);
 
             await UpdateAgentNotesAsync(userId, agentName, model.ConversationId, model.ChatSlot, model.Notes ?? string.Empty);
+            InvalidateConversationsCache(userId);
             return Json(new { success = true });
         }
+
+        // ── PRIVATE HELPERS ───────────────────────────────────────
 
         private string ResolveAgentName(string requestedAgentName)
         {
             var sessionName = HttpContext.Session.GetString("FullName") ?? string.Empty;
-            if (IsUsableAgentName(sessionName))
-            {
-                return sessionName;
-            }
-
-            if (IsUsableAgentName(requestedAgentName))
-            {
-                return requestedAgentName;
-            }
-
+            if (IsUsableAgentName(sessionName)) return sessionName;
+            if (IsUsableAgentName(requestedAgentName)) return requestedAgentName;
             var username = HttpContext.Session.GetString("Username") ?? string.Empty;
-            if (IsUsableAgentName(username))
-            {
-                return username;
-            }
-
+            if (IsUsableAgentName(username)) return username;
             return sessionName;
         }
 
@@ -452,8 +689,7 @@ namespace NextHorizon.Controllers
 
         private static string NormalizeAgentStatus(string status)
         {
-            var normalized = status?.Trim().ToLowerInvariant() ?? "available";
-            return normalized switch
+            return (status?.Trim().ToLowerInvariant() ?? "available") switch
             {
                 "available" => "Available",
                 "break" => "Break",
@@ -465,8 +701,7 @@ namespace NextHorizon.Controllers
 
         private static string ToUiAgentStatus(string status)
         {
-            var normalized = status?.Trim().ToLowerInvariant() ?? "available";
-            return normalized switch
+            return (status?.Trim().ToLowerInvariant() ?? "available") switch
             {
                 "available" => "available",
                 "break" => "break",
@@ -478,8 +713,7 @@ namespace NextHorizon.Controllers
 
         private static string NormalizeChatStatus(string status)
         {
-            var normalized = status?.Trim().ToLowerInvariant() ?? "available";
-            return normalized switch
+            return (status?.Trim().ToLowerInvariant() ?? "available") switch
             {
                 "inchat" => "Active",
                 "active" => "Active",
@@ -495,8 +729,7 @@ namespace NextHorizon.Controllers
 
         private static string NormalizeAgentsTableChatStatus(string chatStatus)
         {
-            var normalized = chatStatus?.Trim().ToLowerInvariant() ?? "available";
-            return normalized switch
+            return (chatStatus?.Trim().ToLowerInvariant() ?? "available") switch
             {
                 "inchat" => "Active",
                 "active" => "Active",
@@ -511,13 +744,40 @@ namespace NextHorizon.Controllers
             };
         }
 
+        private static string MapChatStatusToAgentStatus(string chatStatus)
+        {
+            return (chatStatus?.Trim().ToLowerInvariant() ?? "available") switch
+            {
+                "available" => "Available",
+                "break" => "Unavailable",
+                "lunch" => "Unavailable",
+                "eos" => "Unavailable",
+                "unavailable" => "Unavailable",
+                "acw" => "Unavailable",
+                "inchat" => "Active",
+                "active" => "Active",
+                _ => "Available"
+            };
+        }
+
+        private static string? AgentStatusToChatStatus(string agentStatus)
+        {
+            return agentStatus?.Trim().ToLowerInvariant() switch
+            {
+                "break" => "Unavailable",
+                "lunch" => "Unavailable",
+                "eos" => "Unavailable",
+                "available" => "Available",
+                _ => null
+            };
+        }
+
         private async Task SetConversationChatStatusAsync(int userId, string agentName, int conversationId, string chatStatus, int? chatSlot, string? notes)
         {
             var resolvedAgentName = !string.IsNullOrWhiteSpace(agentName)
                 ? agentName
                 : (HttpContext.Session.GetString("FullName") ?? string.Empty);
             var persistedAgentChatStatus = NormalizeAgentsTableChatStatus(chatStatus);
-            var isAcwStatus = string.Equals(chatStatus, "ACW", StringComparison.OrdinalIgnoreCase);
 
             var rows = await _context.Agents
                 .Where(a => a.ConversationID == conversationId)
@@ -535,7 +795,7 @@ namespace NextHorizon.Controllers
 
                     var latestAgent = await _context.Agents
                         .Where(a => (userId != 0 && a.AgentID == userId) || a.AgentName == fallbackAgentName)
-                    .OrderByDescending(a => a.ChatID)
+                        .OrderByDescending(a => a.ChatID)
                         .FirstOrDefaultAsync();
 
                     var createdRow = new Agent
@@ -548,7 +808,8 @@ namespace NextHorizon.Controllers
                         PreviewQuestion = conversation?.Question ?? "Status update",
                         ChatSlot = chatSlot.HasValue && chatSlot.Value >= 1 && chatSlot.Value <= 3 ? chatSlot.Value : 1,
                         ChatStatus = persistedAgentChatStatus,
-                        AgentStatus = string.IsNullOrWhiteSpace(latestAgent?.AgentStatus) ? "Available" : latestAgent.AgentStatus
+                        AgentStatus = MapChatStatusToAgentStatus(persistedAgentChatStatus)
+                            ?? (string.IsNullOrWhiteSpace(latestAgent?.AgentStatus) ? "Available" : latestAgent.AgentStatus)
                     };
 
                     _context.Agents.Add(createdRow);
@@ -566,6 +827,13 @@ namespace NextHorizon.Controllers
                     shouldSave = true;
                 }
 
+                var mappedAgentStatus = MapChatStatusToAgentStatus(persistedAgentChatStatus);
+                if (!string.Equals(row.AgentStatus, mappedAgentStatus, StringComparison.OrdinalIgnoreCase))
+                {
+                    row.AgentStatus = mappedAgentStatus;
+                    shouldSave = true;
+                }
+
                 if (row.ConversationID != conversationId)
                 {
                     row.ConversationID = conversationId;
@@ -579,26 +847,18 @@ namespace NextHorizon.Controllers
                 }
             }
 
-            if (shouldSave)
-            {
-                await _context.SaveChangesAsync();
-            }
+            if (shouldSave) await _context.SaveChangesAsync();
 
             var targetSlot = chatSlot;
             if ((!targetSlot.HasValue || targetSlot.Value < 1 || targetSlot.Value > 3) && rows.Count > 0)
-            {
                 targetSlot = rows[0].ChatSlot;
-            }
 
             if (targetSlot.HasValue && targetSlot.Value >= 1 && targetSlot.Value <= 3)
             {
                 await UpdateChatSlotStatusAsync(targetSlot.Value, resolvedAgentName, userId, conversationId, persistedAgentChatStatus);
                 if (notes != null)
-                {
                     await UpdateChatSlotNotesAsync(targetSlot.Value, resolvedAgentName ?? string.Empty, userId, conversationId, notes ?? string.Empty);
-                }
             }
-
         }
 
         private async Task UpdateAllChatSlotAgentStatusAsync(string agentName, int userId, string agentStatus)
@@ -642,15 +902,13 @@ BEGIN
            ));
     END
 END";
-
                 await _context.Database.ExecuteSqlRawAsync(sql, agentStatus, agentName, userId);
             }
         }
 
         private async Task UpdateChatSlotStatusAsync(int slot, string agentName, int userId, int conversationId, string chatStatus)
         {
-            if (slot < 1 || slot > 3)
-                return;
+            if (slot < 1 || slot > 3) return;
 
             var tableName = $"dbo.ChatSlot_{slot}";
             var sql = $@"
@@ -717,14 +975,12 @@ BEGIN
         END
     END
 END";
-
             await _context.Database.ExecuteSqlRawAsync(sql, chatStatus, agentName ?? string.Empty, userId, conversationId);
         }
 
         private async Task UpdateChatSlotNotesAsync(int slot, string agentName, int userId, int conversationId, string notes)
         {
-            if (slot < 1 || slot > 3)
-                return;
+            if (slot < 1 || slot > 3) return;
 
             var tableName = $"dbo.ChatSlot_{slot}";
             var sql = $@"
@@ -794,7 +1050,6 @@ BEGIN
         END
     END
 END";
-
             await _context.Database.ExecuteSqlRawAsync(sql, notes ?? string.Empty, agentName ?? string.Empty, userId, conversationId);
         }
 
@@ -833,9 +1088,7 @@ END";
                 normalizedSlot ?? 0);
 
             if (normalizedSlot.HasValue)
-            {
                 await UpdateChatSlotNotesAsync(normalizedSlot.Value, agentName ?? string.Empty, userId, conversationId, notes ?? string.Empty);
-            }
         }
 
         private async Task UpdateAcwTrackingAsync(int conversationId, int? chatSlot, string agentName, int userId, bool isAcwStart)
@@ -883,8 +1136,7 @@ END";
 
         private async Task UpdateChatSlotAcwTimesAsync(int slot, int conversationId, string agentName, int userId, bool isAcwStart)
         {
-            if (slot < 1 || slot > 3)
-                return;
+            if (slot < 1 || slot > 3) return;
 
             var tableName = $"dbo.ChatSlot_{slot}";
             var sql = $@"
@@ -977,11 +1229,8 @@ END";
 
         private async Task<int> ResolveAgentUserIdAsync(int userId, string agentName)
         {
-            if (userId > 0)
-                return userId;
-
-            if (!IsUsableAgentName(agentName))
-                return 0;
+            if (userId > 0) return userId;
+            if (!IsUsableAgentName(agentName)) return 0;
 
             var candidate = await _context.Agents
                 .Where(a => a.AgentName == agentName && a.AgentID.HasValue)
@@ -1005,9 +1254,7 @@ END";
             if (agentRows.Count > 0)
             {
                 foreach (var row in agentRows)
-                {
                     row.AgentStatus = agentStatus;
-                }
 
                 await _context.SaveChangesAsync();
                 return;
@@ -1037,26 +1284,13 @@ END";
 
         private string ResolvePersistedAgentName(string requestedAgentName, int userId)
         {
-            if (IsUsableAgentName(requestedAgentName))
-            {
-                return requestedAgentName.Trim();
-            }
-
+            if (IsUsableAgentName(requestedAgentName)) return requestedAgentName.Trim();
             var sessionFullName = HttpContext.Session.GetString("FullName") ?? string.Empty;
-            if (IsUsableAgentName(sessionFullName))
-            {
-                return sessionFullName.Trim();
-            }
-
+            if (IsUsableAgentName(sessionFullName)) return sessionFullName.Trim();
             var username = HttpContext.Session.GetString("Username") ?? string.Empty;
-            if (IsUsableAgentName(username))
-            {
-                return username.Trim();
-            }
-
+            if (IsUsableAgentName(username)) return username.Trim();
             return userId > 0 ? $"Agent {userId}" : "Agent";
         }
-
     }
 
     public class UpdateAgentStatusRequest
