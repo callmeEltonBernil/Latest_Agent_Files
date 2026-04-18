@@ -391,8 +391,10 @@ namespace NextHorizon.Controllers
 
         // ── END ACW ───────────────────────────────────────────────
         // Called when agent clicks "I'm Available" in the ACW section.
-        // Stamps ACWEndTime = now (the button-press moment), sets agent status
-        // to Available, and clears the ConversationID from the relevant ChatSlot.
+        // ONLY does two things:
+        //   1. Stamps ACWEndTime = button-press moment in dbo.Agents
+        //   2. Clears ConversationID from the relevant ChatSlot table
+        // Does NOT touch AgentStatus, ChatStatus, or any other agent rows.
 
         [HttpPost]
         public async Task<IActionResult> EndAcw([FromBody] EndAcwRequest model)
@@ -404,10 +406,9 @@ namespace NextHorizon.Controllers
             if (model == null || model.ConversationId <= 0)
                 return BadRequest(new { success = false, message = "Invalid request." });
 
-            var agentName = HttpContext.Session.GetString("FullName") ?? string.Empty;
             var acwEndTime = DateTime.Now; // button-press moment is the official ACW end
 
-            // 1. Stamp ACWEndTime in dbo.Agents for this conversation
+            // 1. Stamp ACWEndTime in dbo.Agents for this conversation only
             try
             {
                 await _context.Database.ExecuteSqlRawAsync(
@@ -419,25 +420,10 @@ namespace NextHorizon.Controllers
             }
             catch { /* non-fatal */ }
 
-            // 2. Set agent status to Available in Agents table
-            var agentRows = await _context.Agents
-                .Where(a => (userId != 0 && a.AgentID == userId) ||
-                            (!string.IsNullOrWhiteSpace(agentName) && a.AgentName == agentName))
-                .ToListAsync();
-
-            foreach (var row in agentRows)
-            {
-                row.AgentStatus = "Available";
-                row.ChatStatus = "Available";
-            }
-            if (agentRows.Count > 0)
-                await _context.SaveChangesAsync();
-
-            // 3. Determine which ChatSlot held this conversation and clear its ConversationID
+            // 2. Determine which ChatSlot held this conversation and clear its ConversationID only
             var slot = model.ChatSlot;
             if (!slot.HasValue || slot < 1 || slot > 3)
             {
-                // Fall back: look it up from Agents table
                 var agentRow = await _context.Agents
                     .Where(a => a.ConversationID == model.ConversationId)
                     .OrderByDescending(a => a.ChatID)
@@ -454,13 +440,11 @@ BEGIN
     IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
     BEGIN
         UPDATE {tableName}
-        SET ConversationID = NULL,
-            ChatStatus     = 'Available',
-            AgentStatus    = 'Available'
+        SET ConversationID = NULL
         WHERE ConversationID = {{0}};
- 
+
         IF COL_LENGTH('{tableName}', 'LastUpdatedAt') IS NOT NULL
-            UPDATE {tableName} SET LastUpdatedAt = GETDATE() WHERE ConversationID IS NULL AND AgentId = {{1}};
+            UPDATE {tableName} SET LastUpdatedAt = GETDATE() WHERE AgentId = {{1}} AND ConversationID IS NULL;
     END
 END";
                 try
@@ -469,10 +453,6 @@ END";
                 }
                 catch { /* non-fatal */ }
             }
-
-            // 4. Update agent-level status across all 3 ChatSlot tables
-            var resolvedAgentName = ResolveAgentName(agentName);
-            await UpdateAllChatSlotAgentStatusAsync(resolvedAgentName, userId, "Available");
 
             return Json(new
             {
@@ -491,6 +471,58 @@ END";
             var userId = HttpContext.Session.GetInt32("UserId") ?? 0;
             var resolvedAgentName = ResolveAgentName(agentName);
 
+            // Primary: read AgentStatus from ChatSlot tables — most up-to-date source
+            string? chatSlotStatus = null;
+            DateTime? chatSlotUpdatedAt = null;
+            var conn = _context.Database.GetDbConnection();
+            var wasOpen = conn.State == System.Data.ConnectionState.Open;
+            try
+            {
+                if (!wasOpen) await conn.OpenAsync();
+                for (int slot = 1; slot <= 3; slot++)
+                {
+                    var tableName = $"dbo.ChatSlot_{slot}";
+                    try
+                    {
+                        using var cmd = conn.CreateCommand();
+                        cmd.CommandText = $@"
+IF OBJECT_ID('{tableName}', 'U') IS NOT NULL
+  AND COL_LENGTH('{tableName}', 'AgentStatus') IS NOT NULL
+BEGIN
+    SELECT TOP 1 AgentStatus,
+           CASE WHEN COL_LENGTH('{tableName}', 'AgentStatusLastUpdatedAt') IS NOT NULL
+                THEN AgentStatusLastUpdatedAt ELSE NULL END
+    FROM {tableName}
+    WHERE ({(userId > 0 ? $"AgentId = {userId}" : "1=0")}
+       OR LOWER(LTRIM(RTRIM(ISNULL(AgentName,'')))) = LOWER(LTRIM(RTRIM(N'{resolvedAgentName.Replace("'", "''")}'))));
+END";
+                        using var reader = await cmd.ExecuteReaderAsync();
+                        if (await reader.ReadAsync())
+                        {
+                            var s = reader.IsDBNull(0) ? null : reader.GetString(0);
+                            var t = reader.IsDBNull(1) ? (DateTime?)null : reader.GetDateTime(1);
+                            if (!string.IsNullOrWhiteSpace(s) &&
+                                (chatSlotUpdatedAt == null || (t.HasValue && t > chatSlotUpdatedAt)))
+                            {
+                                chatSlotStatus = s;
+                                chatSlotUpdatedAt = t;
+                            }
+                        }
+                    }
+                    catch { /* column may not exist on this slot */ }
+                }
+            }
+            catch { /* connection issue — fall through to Agents table */ }
+            finally
+            {
+                if (!wasOpen && conn.State == System.Data.ConnectionState.Open)
+                    await conn.CloseAsync();
+            }
+
+            if (!string.IsNullOrWhiteSpace(chatSlotStatus))
+                return Json(new { success = true, status = ToUiAgentStatus(chatSlotStatus) });
+
+            // Fallback: read from dbo.Agents
             var agent = await _context.Agents
                 .Where(a => (userId != 0 && a.AgentID == userId) || a.AgentName == resolvedAgentName)
                 .OrderByDescending(a => a.ChatID)
@@ -520,6 +552,106 @@ END";
                 success = true,
                 acwStart = latestAgentRow?.ACWStartTime,
                 acwEnd = latestAgentRow?.ACWEndTime
+            });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetChatSlotStatuses()
+        {
+            var userId = HttpContext.Session.GetInt32("UserId") ?? 0;
+            var resolvedAgentName = ResolveAgentName(HttpContext.Session.GetString("FullName") ?? string.Empty);
+
+            var statuses = new Dictionary<int, string>
+            {
+                [1] = "available",
+                [2] = "available",
+                [3] = "available"
+            };
+
+            var conn = _context.Database.GetDbConnection();
+            var wasOpen = conn.State == System.Data.ConnectionState.Open;
+            try
+            {
+                if (!wasOpen) await conn.OpenAsync();
+
+                for (int slot = 1; slot <= 3; slot++)
+                {
+                    var tableName = $"dbo.ChatSlot_{slot}";
+                    try
+                    {
+                        using var cmd = conn.CreateCommand();
+                        cmd.CommandText = $@"
+IF OBJECT_ID('{tableName}', 'U') IS NOT NULL
+  AND COL_LENGTH('{tableName}', 'ChatStatus') IS NOT NULL
+BEGIN
+    SELECT TOP 1 ChatStatus
+    FROM {tableName}
+    WHERE ({(userId > 0 ? $"AgentId = {userId}" : "1=0")}
+       OR LOWER(LTRIM(RTRIM(ISNULL(AgentName,'')))) = LOWER(LTRIM(RTRIM(N'{resolvedAgentName.Replace("'", "''")}'))));
+END";
+
+                        var value = await cmd.ExecuteScalarAsync();
+                        if (value != null)
+                        {
+                            statuses[slot] = ToUiChatSlotStatus(Convert.ToString(value) ?? string.Empty);
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            finally
+            {
+                if (!wasOpen && conn.State == System.Data.ConnectionState.Open)
+                    await conn.CloseAsync();
+            }
+
+            return Json(new
+            {
+                success = true,
+                slot1 = statuses[1],
+                slot2 = statuses[2],
+                slot3 = statuses[3]
+            });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateChatSlotStatus([FromBody] UpdateChatSlotStatusRequest model)
+        {
+            if (model == null || model.ChatSlot < 1 || model.ChatSlot > 3 || string.IsNullOrWhiteSpace(model.Status))
+                return BadRequest(new { success = false, message = "Invalid request." });
+
+            var userId = HttpContext.Session.GetInt32("UserId") ?? model.AgentUserId;
+            var resolvedAgentName = ResolveAgentName(model.AgentName);
+            userId = await ResolveAgentUserIdAsync(userId, resolvedAgentName);
+
+            if (userId == 0 && !IsUsableAgentName(resolvedAgentName))
+                return BadRequest(new { success = false, message = "Agent identity is required." });
+
+            var normalizedChatStatus = NormalizeChatStatus(model.Status);
+            await UpdateChatSlotStatusAsync(model.ChatSlot, resolvedAgentName, userId, model.ConversationId, normalizedChatStatus);
+
+            var persistedStatus = NormalizeAgentsTableChatStatus(normalizedChatStatus);
+            var rows = await _context.Agents
+                .Where(a => a.ChatSlot == model.ChatSlot && ((userId > 0 && a.AgentID == userId) || a.AgentName == resolvedAgentName))
+                .ToListAsync();
+
+            if (rows.Count > 0)
+            {
+                foreach (var row in rows)
+                {
+                    row.ChatStatus = persistedStatus;
+                    row.AgentStatus = MapChatStatusToAgentStatus(normalizedChatStatus);
+                }
+
+                await _context.SaveChangesAsync();
+            }
+
+            return Json(new
+            {
+                success = true,
+                chatSlot = model.ChatSlot,
+                status = ToUiChatSlotStatus(normalizedChatStatus)
             });
         }
 
@@ -713,7 +845,22 @@ END";
                 "lunch" => "Unavailable",
                 "eos" => "Unavailable",
                 "acw" => "ACW",
+                "resolved" => "Resolved",
                 _ => "Available"
+            };
+        }
+
+        private static string ToUiChatSlotStatus(string status)
+        {
+            return (status?.Trim().ToLowerInvariant() ?? "available") switch
+            {
+                "active" => "active",
+                "inchat" => "active",
+                "available" => "available",
+                "unavailable" => "unavailable",
+                "acw" => "acw",
+                "resolved" => "resolved",
+                _ => "available"
             };
         }
 
@@ -879,7 +1026,7 @@ BEGIN
                 OR LOWER(ISNULL(AgentName, '')) LIKE '%' + LOWER(LTRIM(RTRIM({{1}}))) + '%'
            ));
     END
- 
+
     IF COL_LENGTH('{tableName}', 'AgentStatusLastUpdatedAt') IS NOT NULL
     BEGIN
         UPDATE {tableName}
@@ -905,18 +1052,45 @@ IF OBJECT_ID('{tableName}', 'U') IS NOT NULL
 BEGIN
     IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
     BEGIN
-        IF COL_LENGTH('{tableName}', 'LastUpdatedAt') IS NOT NULL
+        IF {{4}} > 0
         BEGIN
-            UPDATE {tableName}
-            SET ChatStatus = {{0}},
-                LastUpdatedAt = GETDATE()
-            WHERE ConversationID = {{3}};
+            IF COL_LENGTH('{tableName}', 'LastUpdatedAt') IS NOT NULL
+            BEGIN
+                UPDATE {tableName}
+                SET ChatStatus = {{0}},
+                    LastUpdatedAt = GETDATE()
+                WHERE ConversationID = {{3}};
+            END
+            ELSE
+            BEGIN
+                UPDATE {tableName}
+                SET ChatStatus = {{0}}
+                WHERE ConversationID = {{3}};
+            END
         END
         ELSE
         BEGIN
-            UPDATE {tableName}
-            SET ChatStatus = {{0}}
-            WHERE ConversationID = {{3}};
+            IF COL_LENGTH('{tableName}', 'LastUpdatedAt') IS NOT NULL
+            BEGIN
+                UPDATE {tableName}
+                SET ChatStatus = {{0}},
+                    LastUpdatedAt = GETDATE()
+                WHERE ({{2}} > 0 AND AgentId = {{2}})
+                   OR ({{2}} <= 0 AND (
+                        LOWER(LTRIM(RTRIM(ISNULL(AgentName, '')))) = LOWER(LTRIM(RTRIM({{1}})))
+                        OR LOWER(ISNULL(AgentName, '')) LIKE '%' + LOWER(LTRIM(RTRIM({{1}}))) + '%'
+                   ));
+            END
+            ELSE
+            BEGIN
+                UPDATE {tableName}
+                SET ChatStatus = {{0}}
+                WHERE ({{2}} > 0 AND AgentId = {{2}})
+                   OR ({{2}} <= 0 AND (
+                        LOWER(LTRIM(RTRIM(ISNULL(AgentName, '')))) = LOWER(LTRIM(RTRIM({{1}})))
+                        OR LOWER(ISNULL(AgentName, '')) LIKE '%' + LOWER(LTRIM(RTRIM({{1}}))) + '%'
+                   ));
+            END
         END
     END
     ELSE
@@ -943,14 +1117,27 @@ BEGIN
                ));
         END
     END
- 
+
     IF COL_LENGTH('{tableName}', 'ChatStatusLastUpdatedAt') IS NOT NULL
     BEGIN
         IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
         BEGIN
-            UPDATE {tableName}
-            SET ChatStatusLastUpdatedAt = GETDATE()
-            WHERE ConversationID = {{3}};
+            IF {{4}} > 0
+            BEGIN
+                UPDATE {tableName}
+                SET ChatStatusLastUpdatedAt = GETDATE()
+                WHERE ConversationID = {{3}};
+            END
+            ELSE
+            BEGIN
+                UPDATE {tableName}
+                SET ChatStatusLastUpdatedAt = GETDATE()
+                WHERE ({{2}} > 0 AND AgentId = {{2}})
+                   OR ({{2}} <= 0 AND (
+                        LOWER(LTRIM(RTRIM(ISNULL(AgentName, '')))) = LOWER(LTRIM(RTRIM({{1}})))
+                        OR LOWER(ISNULL(AgentName, '')) LIKE '%' + LOWER(LTRIM(RTRIM({{1}}))) + '%'
+                   ));
+            END
         END
         ELSE
         BEGIN
@@ -964,7 +1151,7 @@ BEGIN
         END
     END
 END";
-            await _context.Database.ExecuteSqlRawAsync(sql, chatStatus, agentName ?? string.Empty, userId, conversationId);
+            await _context.Database.ExecuteSqlRawAsync(sql, chatStatus, agentName ?? string.Empty, userId, conversationId, conversationId);
         }
 
         private async Task UpdateChatSlotNotesAsync(int slot, string agentName, int userId, int conversationId, string notes)
@@ -1018,7 +1205,7 @@ BEGIN
             END
         END
     END
- 
+
     IF COL_LENGTH('{tableName}', 'NotesLastUpdatedAt') IS NOT NULL
     BEGIN
         IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
@@ -1058,7 +1245,7 @@ BEGIN
         WHERE ConversationID = {1}
           AND ({4} = 0 OR ChatSlot = {4});
     END
- 
+
     IF COL_LENGTH('dbo.Agents', 'NotesLastUpdatedAt') IS NOT NULL
     BEGIN
         UPDATE dbo.Agents
@@ -1098,7 +1285,7 @@ BEGIN
             WHERE ConversationID = {0}
               AND ({1} = 0 OR ChatSlot = {1});
         END
- 
+
         IF COL_LENGTH('dbo.Agents', 'ACWEndTime') IS NOT NULL
         BEGIN
             UPDATE dbo.Agents
@@ -1152,7 +1339,7 @@ BEGIN
                    ));
             END
         END
- 
+
         IF COL_LENGTH('{tableName}', 'ACWEndTime') IS NOT NULL
         BEGIN
             IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
@@ -1322,5 +1509,14 @@ END";
     {
         public int ConversationId { get; set; }
         public int? ChatSlot { get; set; }
+    }
+
+    public class UpdateChatSlotStatusRequest
+    {
+        public int ChatSlot { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public int ConversationId { get; set; }
+        public string AgentName { get; set; } = string.Empty;
+        public int AgentUserId { get; set; }
     }
 }

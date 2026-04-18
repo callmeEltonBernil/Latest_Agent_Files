@@ -154,6 +154,13 @@
 }
 .hcl-slot-status.active { background: #e8f4fc; color: #2980b9; }
 .hcl-slot-status.resolved { background: #e8f8ee; color: #27ae60; }
+.hcl-slot-status.available { background: #e8f8ee; color: #27ae60; }
+.hcl-slot-status.unavailable { background: #f0f0f0; color: #7f8c8d; }
+.hcl-slot-status.acw { background: #f3e8ff; color: #8e44ad; }
+.hcl-slot.selected-slot {
+    border-color: #1a1a2e;
+    box-shadow: 0 0 0 1px rgba(26,26,46,.08);
+}
 .hcl-av {
     width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
@@ -366,6 +373,84 @@
 .hcd-status-indicator.eos       { background: #e74c3c; }
 .hcd-status-indicator.acw       { background: #8e44ad; }
 .hcd-status-indicator.inchat    { background: #2980b9; }
+
+.hcd-status-duration-section {
+    margin-top: 4px;
+    padding: 6px 6px 4px;
+    border: 1px solid #e8e8e8;
+    border-radius: 10px;
+    background: #f7f8fa;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.hcd-status-duration-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 4px;
+}
+.hcd-status-duration-current {
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    color: #27ae60;
+}
+.hcd-status-duration-current-value {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f1730;
+    letter-spacing: .2px;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+}
+.hcd-status-duration-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+.hcd-status-duration-item {
+    border: 1px solid #e3e6ea;
+    border-radius: 5px;
+    background: #fff;
+    padding: 2px 4px;
+}
+.hcd-status-duration-item.active {
+    border-color: #1a1a2e;
+    box-shadow: 0 0 0 1px rgba(26,26,46,.04);
+}
+.hcd-status-duration-item-label {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 6px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .33px;
+    color: #7f8a95;
+}
+.hcd-status-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.hcd-status-dot.available { background: #27ae60; }
+.hcd-status-dot.unavailable { background: #95a5a6; }
+.hcd-status-dot.active { background: #2980b9; }
+.hcd-status-dot.acw { background: #8e44ad; }
+.hcd-status-dot.break { background: #e67e22; }
+.hcd-status-dot.lunch { background: #3498db; }
+.hcd-status-dot.eos { background: #e74c3c; }
+.hcd-status-duration-item-value {
+    margin-top: 1px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f1730;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
 .hcd-acw-section {
     padding: 14px 18px 12px;
     border-bottom: 1px solid #f0f0f0;
@@ -402,6 +487,29 @@
 .hcd-acw-notes:disabled { background: #f5f5f5; color: #aaa; }
 .hcd-acw-expired { font-size: 11px; color: #e74c3c; font-weight: 600; display: none; }
 .hcd-acw-expired.show { display: block; }
+
+/* ── ACW Available button ── */
+.hcd-acw-available-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    font-family: 'Poppins', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 10px 14px;
+    background: #27ae60;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity .15s, background .15s;
+    margin-top: 2px;
+}
+.hcd-acw-available-btn:hover { opacity: .88; }
+.hcd-acw-available-btn:disabled { background: #b2dfcc; cursor: not-allowed; opacity: 1; }
+
 .hcd-subj-blk { padding: 14px 18px 12px; border-bottom: 1px solid #f0f0f0; }
 .hcd-subj { font-size: 13px; font-weight: 700; color: #1a1a2e; line-height: 1.4; margin-bottom: 8px; }
 .hcd-info-section { border-bottom: 1px solid #f0f0f0; }
@@ -429,14 +537,6 @@
 .hcl-list::-webkit-scrollbar-thumb, .hcc-body::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
 
 /* Quick status dropdown */
-.hcl-quick-status {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 16px 20px 14px;
-    border-bottom: 1px solid #f0f0f0;
-    flex-shrink: 0;
-}
 .hcl-quick-label {
     font-size: 10px;
     font-weight: 800;
@@ -465,33 +565,13 @@
     padding-right: 32px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
-.hcl-quick-dropdown:hover {
-    border-color: #d0d0d0;
-    background-color: #fff;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-}
-.hcl-quick-dropdown:focus {
-    border-color: #1a1a2e;
-    background-color: #fff;
-    box-shadow: 0 0 0 3px rgba(26, 26, 46, 0.1);
-}
-.hcl-quick-dropdown option {
-    padding: 8px 4px;
-    color: #333;
-    background: #fff;
-    font-weight: 500;
-}
+.hcl-quick-dropdown:hover { border-color: #d0d0d0; background-color: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
+.hcl-quick-dropdown:focus { border-color: #1a1a2e; background-color: #fff; box-shadow: 0 0 0 3px rgba(26,26,46,.1); }
+.hcl-quick-dropdown option { padding: 8px 4px; color: #333; background: #fff; font-weight: 500; }
 .hcl-quick-dropdown option[value="available"] { color: #27ae60; font-weight: 600; }
-.hcl-quick-dropdown option[value="break"] { color: #e67e22; font-weight: 600; }
-.hcl-quick-dropdown option[value="lunch"] { color: #3498db; font-weight: 600; }
-.hcl-quick-dropdown option[value="eos"] { color: #e74c3c; font-weight: 600; }
-.hcl-quick-dropdown:focus {
-    border-color: #1a1a2e;
-    background: #fff;
-}
-.hcl-quick-dropdown:hover {
-    border-color: #d0d0d0;
-}
+.hcl-quick-dropdown option[value="break"]     { color: #e67e22; font-weight: 600; }
+.hcl-quick-dropdown option[value="lunch"]     { color: #3498db; font-weight: 600; }
+.hcl-quick-dropdown option[value="eos"]       { color: #e74c3c; font-weight: 600; }
 
 /* Loading spinner */
 .hc-loading {
@@ -516,6 +596,37 @@
                     <option value="lunch" data-color="#3498db">● Lunch</option>
                     <option value="eos" data-color="#e74c3c">● EOS</option>
                 </select>
+
+                <div class="hcd-status-duration-section" id="hcdStatusDurationSection">
+                    <div class="hcd-status-duration-head">
+                        <div class="hcd-status-duration-current" id="statusDurationCurrentLabel">AVAILABLE</div>
+                        <div class="hcd-status-duration-current-value" id="statusDurationCurrentValue">00:00:00</div>
+                    </div>
+
+                    <div class="hcd-status-duration-grid">
+                        <div class="hcd-status-duration-item" id="statusDurationCard-available">
+                            <div class="hcd-status-duration-item-label"><span class="hcd-status-dot available"></span>Available</div>
+                            <div class="hcd-status-duration-item-value" id="statusDurationValue-available">00:00:00</div>
+                        </div>
+                        <div class="hcd-status-duration-item" id="statusDurationCard-active">
+                            <div class="hcd-status-duration-item-label"><span class="hcd-status-dot active"></span>Active</div>
+                            <div class="hcd-status-duration-item-value" id="statusDurationValue-active">00:00:00</div>
+                        </div>
+                        <div class="hcd-status-duration-item" id="statusDurationCard-break">
+                            <div class="hcd-status-duration-item-label"><span class="hcd-status-dot break"></span>Break</div>
+                            <div class="hcd-status-duration-item-value" id="statusDurationValue-break">00:00:00</div>
+                        </div>
+                        <div class="hcd-status-duration-item" id="statusDurationCard-lunch">
+                            <div class="hcd-status-duration-item-label"><span class="hcd-status-dot lunch"></span>Lunch</div>
+                            <div class="hcd-status-duration-item-value" id="statusDurationValue-lunch">00:00:00</div>
+                        </div>
+                        <div class="hcd-status-duration-item" id="statusDurationCard-eos">
+                            <div class="hcd-status-duration-item-label"><span class="hcd-status-dot eos"></span>EOS</div>
+                            <div class="hcd-status-duration-item-value" id="statusDurationValue-eos">00:00:00</div>
+                        </div>
+                    </div>
+
+                </div>
             </div>
 
             <div class="hcl-toprow">
@@ -548,18 +659,14 @@
             </div>
         </div>
         <div class="hcl-list" id="hclList">
-            <!-- CHATSLOT SEPARATED DIVS-->
             <div id="slot-1" class="hcl-slot empty">
                 <div class="hcl-slot-title">Chat Slot 1</div>
                 <div class="hcl-slot-meta">No ticket assigned</div>
             </div>
-
-            
             <div id="slot-2" class="hcl-slot empty">
                 <div class="hcl-slot-title">Chat Slot 2</div>
                 <div class="hcl-slot-meta">No ticket assigned</div>
             </div>
-
             <div id="slot-3" class="hcl-slot empty">
                 <div class="hcl-slot-title">Chat Slot 3</div>
                 <div class="hcl-slot-meta">No ticket assigned</div>
@@ -601,9 +708,7 @@
             </div>
 
             <div class="hcc-claim-bar" id="hccClaimBar" style="display:none"></div>
-
             <div class="hcc-inactive-warn" id="hccInactiveWarn"></div>
-
             <div class="hcc-body" id="hccBody"></div>
 
             <div class="hcc-footer">
@@ -648,11 +753,16 @@
                 </div>
             </div>
 
+            <!-- ── ACW SECTION ─────────────────────────────────────── -->
             <div class="hcd-acw-section" id="acwSection">
                 <div class="hcd-acw-title">After Chat Work (ACW)</div>
                 <div class="hcd-acw-timer">Time remaining: <span id="acwTimer">2:00</span></div>
                 <textarea class="hcd-acw-notes" id="acwNotes" placeholder="Add your notes for this resolved ticket..."></textarea>
                 <div class="hcd-acw-expired" id="acwExpired">ACW time expired.</div>
+                <!-- Agent clicks this when they are ready — button-press moment = ACWEndTime -->
+                <button class="hcd-acw-available-btn" id="acwAvailableBtn" onclick="hcEndAcw()">
+                    <i class="fas fa-circle-check"></i> I'm Available
+                </button>
             </div>
 
             <div class="hcd-lbar">
@@ -722,11 +832,28 @@
     var acwManualStatusByConversation = {};
     var conversationSlotById = {};
     var notesSaveTimeout = null;
+    var statusDurationInterval = null;
+    var agentStatusRefreshInterval = null;
+    var slotStatusRefreshInterval = null;
+
+    var STATUS_DURATION_KEYS = ['available', 'active', 'break', 'lunch', 'eos'];
+    var STATUS_DURATION_LABELS = {
+        available: 'AVAILABLE',
+        active: 'ACTIVE',
+        break: 'BREAK',
+        lunch: 'LUNCH',
+        eos: 'EOS'
+    };
+    var statusDurationState = null;
+    var statusDurationStorageKey = '';
+    var selectedChatSlot = 1;
+    var chatSlotStatusBySlot = { 1: 'active', 2: 'available', 3: 'available' };
 
     var MAX_CHAT_SECONDS = 300;
     var INACTIVITY_WARN_SECONDS = 120;
-    var AUTO_REFRESH_MS = 2000;
-    var MESSAGE_POLL_MS = 2000;
+    var AUTO_REFRESH_MS = 1000;
+    var MESSAGE_POLL_MS = 1000;
+    var STATUS_REFRESH_MS = 1000;
 
     const COLS = ['#2980b9','#e67e22','#27ae60','#8e44ad','#e74c3c','#16a085','#d35400','#2c3e50'];
     function ac(n) { let h=0; for(let i=0;i<(n||'').length;i++) h=n.charCodeAt(i)+((h<<5)-h); return COLS[Math.abs(h)%COLS.length]; }
@@ -734,6 +861,327 @@
     function fmtDate(d) { return d ? new Date(d).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'; }
     function clamp(v,min,max) { return Math.max(min,Math.min(max,v)); }
     function statusNorm(s) { return String(s || '').trim().toLowerCase(); }
+    function createDurationTotals() {
+        return {
+            available: 0,
+            active: 0,
+            break: 0,
+            lunch: 0,
+            eos: 0
+        };
+    }
+
+    function normalizeSlotStatus(status) {
+        var s = statusNorm(status);
+        if (s === 'inchat') return 'active';
+        if (s === 'resolved') return 'resolved';
+        if (s === 'acw') return 'acw';
+        if (s === 'unavailable') return 'unavailable';
+        if (s === 'available') return 'available';
+        return 'active';
+    }
+
+    function slotStatusLabel(status) {
+        var s = normalizeSlotStatus(status);
+        if (s === 'active') return 'Active';
+        if (s === 'available') return 'Available';
+        if (s === 'unavailable') return 'Unavailable';
+        if (s === 'acw') return 'ACW';
+        if (s === 'resolved') return 'Resolved';
+        return 'Active';
+    }
+
+    function isSelectedSlotActive() {
+        var current = normalizeSlotStatus(chatSlotStatusBySlot[selectedChatSlot]);
+        return current === 'active';
+    }
+
+    function getConversationIdForSlot(slotNumber) {
+        var foundId = null;
+        Object.keys(conversationSlotById).forEach(function(key) {
+            if (conversationSlotById[key] === slotNumber) {
+                foundId = parseInt(key, 10);
+            }
+        });
+        return foundId;
+    }
+
+    function updateSelectedSlotUiControls() {
+        var current = normalizeSlotStatus(chatSlotStatusBySlot[selectedChatSlot]);
+
+        var rightSel = document.getElementById('agentStatusSelect');
+        if (rightSel && ['active', 'available', 'unavailable', 'acw'].indexOf(current) >= 0) {
+            rightSel.value = current;
+            syncStatusIndicatorFromDropdown();
+        }
+    }
+
+    function applySelectedSlotRestrictions() {
+        if (!selId) return;
+
+        var slotStatus = normalizeSlotStatus(chatSlotStatusBySlot[getSelectedChatSlot()] || 'active');
+        if (slotStatus === 'active') return;
+
+        clearInterval(timerInterval);
+        timerInterval = null;
+
+        var inputRow = document.getElementById('hccInputRow');
+        var input = document.getElementById('hccChatIn');
+        var endBtn = document.getElementById('hccEndBtn');
+        if (inputRow) inputRow.classList.add('ended');
+        if (input) input.placeholder = 'Slot status is ' + slotStatusLabel(slotStatus) + '. Set slot to Active to continue.';
+        if (endBtn) { endBtn.disabled = true; endBtn.style.opacity = '.45'; }
+    }
+
+    function clearConversationSelectionView() {
+        selId = null;
+        convEnded = false;
+        clearInterval(timerInterval); timerInterval = null;
+        clearInterval(pollInterval); pollInterval = null;
+        hideInactivityWarning();
+        var timerEl = document.getElementById('hccTimerVal');
+        if (timerEl) timerEl.textContent = '5:00';
+        document.getElementById('hccEmpty').style.display = '';
+        var cp = document.getElementById('hccPanel');
+        if (cp) cp.style.display = 'none';
+        document.getElementById('hcdEmpty').style.display = '';
+        var dp = document.getElementById('hcDetailPanel');
+        if (dp) dp.style.display = 'none';
+    }
+
+    function selectChatSlot(slotNumber, conversationId) {
+        selectedChatSlot = slotNumber;
+        updateSelectedSlotUiControls();
+        if (conversationId) {
+            openConversation(conversationId);
+            return;
+        }
+        clearConversationSelectionView();
+        renderList();
+    }
+
+    function loadChatSlotStatuses() {
+        fetch('/Agent/GetChatSlotStatuses')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || !data.success) return;
+                chatSlotStatusBySlot[1] = normalizeSlotStatus(data.slot1 || 'available');
+                chatSlotStatusBySlot[2] = normalizeSlotStatus(data.slot2 || 'available');
+                chatSlotStatusBySlot[3] = normalizeSlotStatus(data.slot3 || 'available');
+                updateSelectedSlotUiControls();
+                renderList();
+            })
+            .catch(function() { });
+    }
+
+    function syncAgentStatusFromServer() {
+        fetch('/Agent/GetAgentStatus?agentName=' + encodeURIComponent(AGENT_NAME))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || !data.success) return;
+
+                var sel = document.getElementById('agentStatusSelect');
+                var ind = document.getElementById('statusIndicator');
+                if (sel && ['available', 'active', 'unavailable', 'acw'].indexOf(data.status) >= 0) {
+                    sel.value = data.status;
+                }
+                if (ind) ind.className = 'hcd-status-indicator ' + data.status;
+
+                var quickSel = document.getElementById('hclQuickStatusSelect');
+                if (quickSel && ['available', 'break', 'lunch', 'eos'].indexOf(data.status) >= 0) {
+                    quickSel.value = data.status;
+                    var opt = quickSel.querySelector('option[value="' + data.status + '"]');
+                    quickSel.style.color = opt ? opt.getAttribute('data-color') : '#333';
+                }
+
+                switchStatusDuration(data.status, 'agent');
+                updateSelectedSlotUiControls();
+            })
+            .catch(function() {});
+    }
+
+    function persistSelectedSlotStatus(status) {
+        var normalized = normalizeSlotStatus(status);
+        var slotConversationId = getConversationIdForSlot(selectedChatSlot);
+
+        // Empty slots must remain Available.
+        if (!slotConversationId) normalized = 'available';
+
+        // Slots with active assigned tickets should show Active.
+        if (slotConversationId && normalized !== 'resolved' && normalized !== 'acw') normalized = 'active';
+
+        chatSlotStatusBySlot[selectedChatSlot] = normalized;
+        updateSelectedSlotUiControls();
+        renderList();
+
+        fetch('/Agent/UpdateChatSlotStatus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chatSlot: selectedChatSlot,
+                status: normalized,
+                conversationId: slotConversationId || selId || 0,
+                agentName: AGENT_NAME,
+                agentUserId: AGENT_USER_ID
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data && data.success) {
+                chatSlotStatusBySlot[selectedChatSlot] = normalizeSlotStatus(data.status || normalized);
+                updateSelectedSlotUiControls();
+                renderList();
+                applySelectedSlotRestrictions();
+            }
+        })
+        .catch(function() { });
+    }
+
+    function fmtClock(totalSeconds) {
+        totalSeconds = Math.max(0, totalSeconds || 0);
+        var h = Math.floor(totalSeconds / 3600);
+        var m = Math.floor((totalSeconds % 3600) / 60);
+        var s = totalSeconds % 60;
+        return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function normalizeDurationStatus(status) {
+        var s = statusNorm(status);
+        if (s === 'inchat') return 'active';
+        if (s === 'busy') return 'active';
+        if (s === 'acw') return 'active';
+        if (s === 'unavailable') return 'active';
+        if (s === 'online') return 'available';
+        if (STATUS_DURATION_KEYS.indexOf(s) >= 0) return s;
+        return 'available';
+    }
+
+    function ensureDurationStateShape(state) {
+        if (!state || typeof state !== 'object') state = {};
+        if (!state.totals || typeof state.totals !== 'object') state.totals = createDurationTotals();
+        STATUS_DURATION_KEYS.forEach(function(k) {
+            if (typeof state.totals[k] !== 'number' || isNaN(state.totals[k])) state.totals[k] = 0;
+        });
+        if (!Array.isArray(state.logs)) state.logs = [];
+        state.currentStatus = normalizeDurationStatus(state.currentStatus || 'available');
+        state.currentStartMs = Number(state.currentStartMs || Date.now());
+        if (isNaN(state.currentStartMs) || state.currentStartMs <= 0) state.currentStartMs = Date.now();
+        return state;
+    }
+
+    function buildDurationStorageKey() {
+        return 'agent-status-duration-v1:' + (AGENT_USER_ID || 0) + ':' + (AGENT_NAME || 'agent');
+    }
+
+    function loadDurationState() {
+        statusDurationStorageKey = buildDurationStorageKey();
+        var parsed = null;
+        try {
+            var raw = localStorage.getItem(statusDurationStorageKey);
+            if (raw) parsed = JSON.parse(raw);
+        } catch (e) { }
+        statusDurationState = ensureDurationStateShape(parsed || {
+            currentStatus: 'available',
+            currentStartMs: Date.now(),
+            totals: createDurationTotals(),
+            logs: []
+        });
+    }
+
+    function saveDurationState() {
+        if (!statusDurationState) return;
+        try {
+            localStorage.setItem(statusDurationStorageKey || buildDurationStorageKey(), JSON.stringify(statusDurationState));
+        } catch (e) { }
+    }
+
+    function getStatusTotalSeconds(status, nowMs) {
+        if (!statusDurationState) return 0;
+        var s = normalizeDurationStatus(status);
+        var total = Math.floor(statusDurationState.totals[s] || 0);
+        if (statusDurationState.currentStatus === s && statusDurationState.currentStartMs) {
+            total += Math.max(0, Math.floor((nowMs - statusDurationState.currentStartMs) / 1000));
+        }
+        return total;
+    }
+
+    function renderStatusDurations() {
+        if (!statusDurationState) return;
+        var nowMs = Date.now();
+        var current = normalizeDurationStatus(statusDurationState.currentStatus);
+        var currentElapsed = Math.max(0, Math.floor((nowMs - statusDurationState.currentStartMs) / 1000));
+
+        var currentLbl = document.getElementById('statusDurationCurrentLabel');
+        var currentVal = document.getElementById('statusDurationCurrentValue');
+        if (currentLbl) currentLbl.textContent = STATUS_DURATION_LABELS[current] || current.toUpperCase();
+        if (currentVal) currentVal.textContent = fmtClock(currentElapsed);
+
+        STATUS_DURATION_KEYS.forEach(function(key) {
+            var val = document.getElementById('statusDurationValue-' + key);
+            var card = document.getElementById('statusDurationCard-' + key);
+            if (val) val.textContent = fmtClock(getStatusTotalSeconds(key, nowMs));
+            if (card) card.classList.toggle('active', key === current);
+        });
+    }
+
+    function switchStatusDuration(status, source) {
+        source = source || 'system';
+        var next = normalizeDurationStatus(status);
+        if (!statusDurationState) loadDurationState();
+
+        var quickSel = document.getElementById('hclQuickStatusSelect');
+        var globalAgentStatus = statusNorm(quickSel ? quickSel.value : 'available');
+        var isGlobalAway = globalAgentStatus === 'break' || globalAgentStatus === 'lunch' || globalAgentStatus === 'eos';
+
+        if (source === 'chat' && isGlobalAway) {
+            renderStatusDurations();
+            return;
+        }
+
+        var nowMs = Date.now();
+        var current = normalizeDurationStatus(statusDurationState.currentStatus);
+
+        if (current === next) {
+            renderStatusDurations();
+            return;
+        }
+
+        var elapsed = Math.max(0, Math.floor((nowMs - statusDurationState.currentStartMs) / 1000));
+        statusDurationState.totals[current] = Math.floor(statusDurationState.totals[current] || 0) + elapsed;
+        statusDurationState.logs.push({
+            status: current,
+            startUtc: new Date(statusDurationState.currentStartMs).toISOString(),
+            endUtc: new Date(nowMs).toISOString(),
+            durationSeconds: elapsed
+        });
+
+        if (statusDurationState.logs.length > 1000) {
+            statusDurationState.logs = statusDurationState.logs.slice(statusDurationState.logs.length - 1000);
+        }
+
+        statusDurationState.currentStatus = next;
+        statusDurationState.currentStartMs = nowMs;
+        saveDurationState();
+        renderStatusDurations();
+    }
+
+    function initStatusDurationTracker(initialStatus) {
+        loadDurationState();
+        if (initialStatus) {
+            switchStatusDuration(initialStatus, 'agent');
+        } else {
+            renderStatusDurations();
+        }
+        clearInterval(statusDurationInterval);
+        statusDurationInterval = setInterval(function() {
+            renderStatusDurations();
+        }, 1000);
+    }
+
+    window.getAgentStatusDurationLogs = function() {
+        if (!statusDurationState) return [];
+        return (statusDurationState.logs || []).slice();
+    };
 
     /* ── RESIZERS ─────────────────────────────────────────────── */
     function initResizers() {
@@ -768,7 +1216,7 @@
         }));
     }
 
-    /* ── LOAD CONVERSATIONS FROM DB ───────────────────────────── */
+    /* ── LOAD CONVERSATIONS ───────────────────────────────────── */
     function loadConversations(initialLoad) {
         fetch('/Agent/GetConversations')
             .then(function(r) { return r.json(); })
@@ -776,35 +1224,35 @@
                 if (!data.success) { showListError('Failed to load tickets.'); return; }
                 allConversations = data.conversations || [];
 
-                // Restore ACW start/end timestamps from server so timers survive refresh
                 allConversations.forEach(function(conv) {
                     try {
                         if (conv.acwStart) {
                             var d = new Date(conv.acwStart);
                             if (!isNaN(d.getTime())) {
                                 acwStartByConversation[conv.id] = d.getTime();
-                                // ensure ACW manual flag is not set (server-driven)
                                 if (acwManualStatusByConversation[conv.id]) delete acwManualStatusByConversation[conv.id];
                                 return;
                             }
                         }
                         if (conv.acwEnd) {
-                            // ACW already ended — mark as expired so UI shows ended state
                             acwStartByConversation[conv.id] = 0;
                             if (acwManualStatusByConversation[conv.id]) delete acwManualStatusByConversation[conv.id];
                             return;
                         }
-                        // No ACW recorded
                         if (acwStartByConversation[conv.id]) delete acwStartByConversation[conv.id];
                         if (acwManualStatusByConversation[conv.id]) delete acwManualStatusByConversation[conv.id];
-                    } catch (e) { /* ignore malformed dates */ }
+                    } catch (e) { }
                 });
+
                 updateStats();
                 renderList();
 
                 if (selId) {
                     var current = allConversations.find(function(c) { return c.id === selId; });
                     if (current) {
+                        var mappedSlot = conversationSlotById[selId];
+                        if (mappedSlot && mappedSlot >= 1 && mappedSlot <= 3) selectedChatSlot = mappedSlot;
+                        updateSelectedSlotUiControls();
                         syncSelectedConversationState(current);
                         loadMessages(selId, true);
                         return;
@@ -815,8 +1263,6 @@
                 if (initialLoad) {
                     var first = allConversations.find(function(c) { return c.isAssigned; });
                     if (first) {
-                        // If server didn't include ACW timestamps for this conversation, fetch them
-                        // so the client can initialize the ACW timer correctly after a full page refresh.
                         if (!first.acwStart && !first.acwEnd) {
                             fetch('/Agent/GetConversationAcw?conversationId=' + first.id)
                                 .then(function(r) { return r.json(); })
@@ -854,7 +1300,6 @@
         var rows = allConversations.filter(function(c) {
             if (activeTab === 'assigned'   && (!c.isAssigned || statusNorm(c.status) === 'resolved')) return false;
             if (activeTab === 'unassigned' && c.isAssigned) return false;
-            // Resolved tab should list resolved conversations regardless of assignment state
             if (activeTab === 'resolved'   && statusNorm(c.status) !== 'resolved') return false;
             if (q && !(
                 (c.question || '').toLowerCase().includes(q) ||
@@ -870,13 +1315,9 @@
                 var bSort = b.endTime ? new Date(b.endTime).getTime() : new Date(b.createdAt).getTime();
                 return bSort - aSort;
             }
-
             if (activeTab === 'unassigned') {
-                var aCreated = new Date(a.createdAt).getTime();
-                var bCreated = new Date(b.createdAt).getTime();
-                return bCreated - aCreated;
+                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
             }
-
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
 
@@ -889,30 +1330,28 @@
 
         if (activeTab === 'assigned') {
             var slots = rows.slice(0, 3);
-
-            // Remove any previously rendered cards or no-results placeholders so only the 3 slots remain
+            conversationSlotById = {};
             list.querySelectorAll('.hcl-card, .hcl-no-results').forEach(function(el) { el.remove(); });
-
-            // Ensure the static slot elements are visible again (they may have been hidden when viewing other tabs)
             list.querySelectorAll('.hcl-slot').forEach(function(el) { el.style.display = ''; });
 
-            // Populate the 3 static chat slots
             for (var i = 0; i < 3; i++) {
                 var conv = slots[i];
                 var slotNumber = i + 1;
-                var slotId = 'slot-' + slotNumber;
-                var slot = document.getElementById(slotId);
+                var slot = document.getElementById('slot-' + slotNumber);
                 if (!slot) continue;
 
-                var isActive = conv && conv.id === selId;
-                slot.className = 'hcl-slot' + (isActive ? ' active' : '') + (conv ? '' : ' empty');
+                var isConversationActive = conv && conv.id === selId;
+                var isSelectedSlot = selectedChatSlot === slotNumber;
+                slot.className = 'hcl-slot' + (isConversationActive ? ' active' : '') + (isSelectedSlot ? ' selected-slot' : '') + (conv ? '' : ' empty');
 
                 if (conv) {
                     conversationSlotById[conv.id] = slotNumber;
                     var color = ac(conv.category || 'ticket');
-                    var slotStatus = statusNorm(conv.status) === 'resolved' ? 'Resolved' : 'In Chat';
-                    var slotStatusClass = statusNorm(conv.status) === 'resolved' ? 'resolved' : 'active';
-                    slot.onclick = (function(id) { return function() { openConversation(id); }; })(conv.id);
+                    var slotState = statusNorm(conv.status) === 'resolved' ? 'resolved' : 'active';
+                    chatSlotStatusBySlot[slotNumber] = slotState;
+                    var slotStatus = slotStatusLabel(slotState);
+                    var slotStatusClass = slotState;
+                    slot.onclick = (function(id, slotNo) { return function() { selectChatSlot(slotNo, id); }; })(conv.id, slotNumber);
                     slot.innerHTML =
                         '<div class="hcl-slot-title">Chat Slot ' + slotNumber + '</div>' +
                         '<div class="hcl-slot-body">' +
@@ -928,21 +1367,20 @@
                         '</div>' +
                         '<span class="hcl-slot-status ' + slotStatusClass + '">' + slotStatus + '</span>';
                 } else {
-                    slot.onclick = null;
+                    var emptyState = 'available';
+                    chatSlotStatusBySlot[slotNumber] = emptyState;
+                    slot.onclick = (function(slotNo) { return function() { selectChatSlot(slotNo); }; })(slotNumber);
                     slot.innerHTML =
                         '<div class="hcl-slot-title">Chat Slot ' + slotNumber + '</div>' +
-                        '<div class="hcl-slot-meta">No ticket assigned</div>';
+                        '<div class="hcl-slot-meta">No ticket assigned</div>' +
+                        '<span class="hcl-slot-status ' + emptyState + '">' + slotStatusLabel(emptyState) + '</span>';
                 }
             }
-
+            updateSelectedSlotUiControls();
             return;
         }
 
-        // For non-assigned tabs, clear slots and show ticket list
-        // Hide the static slots (they are only used for the assigned tab)
         list.querySelectorAll('.hcl-slot').forEach(function(el) { el.style.display = 'none'; });
-
-        // Remove any previously rendered cards or no-results placeholders to avoid duplicates
         list.querySelectorAll('.hcl-card, .hcl-no-results').forEach(function(el) { el.remove(); });
 
         if (!rows.length) {
@@ -996,8 +1434,7 @@
             if (claimBar) claimBar.classList.remove('show');
             if (inputRow) inputRow.classList.add('ended');
             if (input) input.placeholder = 'Unassigned ticket. Waiting for admin assignment.';
-            clearInterval(timerInterval);
-            timerInterval = null;
+            clearInterval(timerInterval); timerInterval = null;
             if (timerEl) timerEl.textContent = '5:00';
             convEnded = false;
             resetInactivityNotices();
@@ -1011,8 +1448,7 @@
         if (isResolved) {
             convEnded = true;
             resetInactivityNotices();
-            clearInterval(timerInterval);
-            timerInterval = null;
+            clearInterval(timerInterval); timerInterval = null;
             if (timerEl) timerEl.textContent = '0:00';
             if (inputRow) inputRow.classList.add('ended');
             if (input) input.placeholder = 'Conversation is resolved. Unresolve to reply.';
@@ -1026,44 +1462,42 @@
         if (input) input.placeholder = 'Type a reply...';
         if (endBtn) { endBtn.disabled = false; endBtn.style.opacity = '1'; }
         if (!timerInterval) startTimer();
+        applySelectedSlotRestrictions();
     }
 
-    function resetInactivityNotices() {
-        inactivityEndingRequested = false;
-    }
+    function resetInactivityNotices() { inactivityEndingRequested = false; }
 
     function applyResolveUiState(isResolved) {
-        var topResolveBtn = document.getElementById('hccResolveTopBtn');
+        var topResolveBtn    = document.getElementById('hccResolveTopBtn');
         var bottomResolveBtn = document.getElementById('hccResolveBottomBtn');
-        var updateSel = document.getElementById('hcdUpdateSel');
+        var updateSel        = document.getElementById('hcdUpdateSel');
 
-        if (topResolveBtn) topResolveBtn.style.display = isResolved ? 'none' : 'flex';
+        if (topResolveBtn)    topResolveBtn.style.display    = isResolved ? 'none' : 'flex';
         if (bottomResolveBtn) bottomResolveBtn.style.display = isResolved ? 'none' : 'flex';
 
         if (!updateSel) return;
         var resolvedOpt = updateSel.querySelector('option[value="Resolved"]');
-        var activeOpt = updateSel.querySelector('option[value="active"]');
+        var activeOpt   = updateSel.querySelector('option[value="active"]');
         if (!resolvedOpt) return;
 
         resolvedOpt.hidden = false;
         resolvedOpt.disabled = false;
 
         if (activeOpt) {
-            activeOpt.hidden = isResolved;
+            activeOpt.hidden   = isResolved;
             activeOpt.disabled = isResolved;
         }
 
-        if (isResolved) {
-            updateSel.value = 'Resolved';
-        }
+        if (isResolved) updateSel.value = 'Resolved';
     }
 
     function updateAcwState(isResolved, conversationId) {
-        var acwSection = document.getElementById('acwSection');
-        var acwNotes = document.getElementById('acwNotes');
-        var acwExpired = document.getElementById('acwExpired');
+        var acwSection   = document.getElementById('acwSection');
+        var acwNotes     = document.getElementById('acwNotes');
+        var acwExpired   = document.getElementById('acwExpired');
+        var acwAvailBtn  = document.getElementById('acwAvailableBtn');
         var statusSelect = document.getElementById('agentStatusSelect');
-        var indicator = document.getElementById('statusIndicator');
+        var indicator    = document.getElementById('statusIndicator');
 
         if (!acwSection || !acwNotes) return;
 
@@ -1071,7 +1505,8 @@
             acwSection.classList.remove('show');
             acwNotes.disabled = true;
             acwNotes.value = '';
-            if (acwExpired) acwExpired.classList.remove('show');
+            if (acwExpired)  acwExpired.classList.remove('show');
+            if (acwAvailBtn) acwAvailBtn.disabled = false;
             clearInterval(acwInterval);
             acwInterval = null;
             if (statusSelect) {
@@ -1089,8 +1524,7 @@
             acwSection.classList.remove('show');
             acwNotes.disabled = true;
             if (acwExpired) acwExpired.classList.remove('show');
-            clearInterval(acwInterval);
-            acwInterval = null;
+            clearInterval(acwInterval); acwInterval = null;
             if (statusSelect) {
                 var acwOption = statusSelect.querySelector('option[value="acw"]');
                 if (acwOption) acwOption.hidden = true;
@@ -1101,13 +1535,12 @@
         acwSection.classList.add('show');
         acwNotes.disabled = false;
         if (acwExpired) acwExpired.classList.remove('show');
+        if (acwAvailBtn) acwAvailBtn.disabled = false;
 
         if (statusSelect) {
             var acwOption = statusSelect.querySelector('option[value="acw"]');
             if (acwOption) acwOption.hidden = false;
-            if (!acwManualStatusByConversation[conversationId]) {
-                statusSelect.value = 'acw';
-            }
+            if (!acwManualStatusByConversation[conversationId]) statusSelect.value = 'acw';
         }
         if (indicator && !acwManualStatusByConversation[conversationId]) {
             indicator.className = 'hcd-status-indicator acw';
@@ -1132,40 +1565,44 @@
         acwInterval = setInterval(function() {
             var start = acwStartByConversation[conversationId];
             if (!start) return;
-            var elapsed = Math.floor((Date.now() - start) / 1000);
+            var elapsed   = Math.floor((Date.now() - start) / 1000);
             var remaining = Math.max(0, 120 - elapsed);
             updateAcwDisplay(remaining);
             if (remaining <= 0) {
-                clearInterval(acwInterval);
-                acwInterval = null;
+                clearInterval(acwInterval); acwInterval = null;
                 acwStartByConversation[conversationId] = 0;
                 applyAcwExpiredState();
             }
         }, 1000);
-        var start = acwStartByConversation[conversationId];
-        var elapsed = Math.floor((Date.now() - start) / 1000);
+
+        var start     = acwStartByConversation[conversationId];
+        var elapsed   = Math.floor((Date.now() - start) / 1000);
         var remaining = Math.max(0, 120 - elapsed);
         updateAcwDisplay(remaining);
     }
 
     function applyAcwExpiredState() {
-        var acwNotes = document.getElementById('acwNotes');
-        var acwExpired = document.getElementById('acwExpired');
+        var acwNotes    = document.getElementById('acwNotes');
+        var acwExpired  = document.getElementById('acwExpired');
+        var acwAvailBtn = document.getElementById('acwAvailableBtn');
         var statusSelect = document.getElementById('agentStatusSelect');
-        if (acwNotes) acwNotes.disabled = true;
+
+        if (acwNotes)   acwNotes.disabled = true;
         if (acwExpired) acwExpired.classList.add('show');
+        // Keep button enabled so agent can still mark available even after expiry
+        if (acwAvailBtn) acwAvailBtn.disabled = false;
+
         if (statusSelect) {
             var acwOption = statusSelect.querySelector('option[value="acw"]');
             if (acwOption) acwOption.hidden = true;
-            if (statusSelect.value === 'acw') {
-                statusSelect.value = 'available';
-            }
+            if (statusSelect.value === 'acw') statusSelect.value = 'available';
         }
         syncStatusIndicatorFromDropdown();
         if (selId) persistChatStatus('available', selId);
     }
 
     function getSelectedChatSlot() {
+        if (selectedChatSlot >= 1 && selectedChatSlot <= 3) return selectedChatSlot;
         return selId ? (conversationSlotById[selId] || null) : null;
     }
 
@@ -1185,24 +1622,26 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            // If server indicated ACW ended due to manual Available transition,
-            // update client UI to reflect ACW end and clear conversation linkage.
-            if (data) {
-                if (data.acwEnded || (data.status && data.status.toLowerCase() === 'available')) {
-                    try {
-                        acwStartByConversation[conversationId] = 0;
-                        updateAcwState(false, conversationId);
-                        convEnded = false;
-                        var inputRow = document.getElementById('hccInputRow');
-                        if (inputRow) inputRow.classList.remove('ended');
-                        var chatIn = document.getElementById('hccChatIn');
-                        if (chatIn) chatIn.placeholder = 'Type a reply...';
-                        var endBtn = document.getElementById('hccEndBtn');
-                        if (endBtn) { endBtn.disabled = false; endBtn.style.opacity = '1'; }
-                        updateStats();
-                        renderList();
-                    } catch (e) { /* ignore UI update errors */ }
-                }
+            var slot = getSelectedChatSlot();
+            if (slot) {
+                chatSlotStatusBySlot[slot] = normalizeSlotStatus((data && data.status) ? data.status : status);
+                updateSelectedSlotUiControls();
+            }
+            switchStatusDuration((data && data.status) ? data.status : status, 'chat');
+            if (data && (data.acwEnded || (data.status && data.status.toLowerCase() === 'available'))) {
+                try {
+                    acwStartByConversation[conversationId] = 0;
+                    updateAcwState(false, conversationId);
+                    convEnded = false;
+                    var inputRow = document.getElementById('hccInputRow');
+                    if (inputRow) inputRow.classList.remove('ended');
+                    var chatIn = document.getElementById('hccChatIn');
+                    if (chatIn) chatIn.placeholder = 'Type a reply...';
+                    var endBtn = document.getElementById('hccEndBtn');
+                    if (endBtn) { endBtn.disabled = false; endBtn.style.opacity = '1'; }
+                    updateStats();
+                    renderList();
+                } catch (e) { }
             }
         })
         .catch(function(e) { console.error('Chat status update failed:', e); });
@@ -1212,7 +1651,6 @@
         if (!selId) return;
         var notesEl = document.getElementById('acwNotes');
         if (!notesEl) return;
-
         fetch('/Agent/SaveConversationNotes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1230,7 +1668,7 @@
 
     function syncStatusIndicatorFromDropdown() {
         var statusSelect = document.getElementById('agentStatusSelect');
-        var indicator = document.getElementById('statusIndicator');
+        var indicator    = document.getElementById('statusIndicator');
         if (!statusSelect || !indicator) return;
         indicator.className = 'hcd-status-indicator ' + statusSelect.value;
     }
@@ -1242,6 +1680,80 @@
         var s = remainingSeconds % 60;
         acwTimer.textContent = m + ':' + (s < 10 ? '0' : '') + s;
     }
+
+    // ── END ACW (I'm Available button) ────────────────────────────
+    // The moment the agent presses this button is the official ACWEndTime.
+    window.hcEndAcw = function() {
+        if (!selId) return;
+
+        var btn = document.getElementById('acwAvailableBtn');
+        if (btn) btn.disabled = true;
+
+        // Save notes first (best-effort, don't wait)
+        persistAcwNotes();
+
+        var conversationIdAtCall = selId;
+        var slotAtCall = getSelectedChatSlot();
+
+        fetch('/Agent/EndAcw', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                conversationId: conversationIdAtCall,
+                chatSlot: slotAtCall
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data || !data.success) {
+                if (btn) btn.disabled = false;
+                alert((data && data.message) || 'Could not end ACW.');
+                return;
+            }
+
+            // Stop local ACW timer
+            clearInterval(acwInterval);
+            acwInterval = null;
+            acwStartByConversation[conversationIdAtCall] = 0;
+            delete acwManualStatusByConversation[conversationIdAtCall];
+
+            // Remove conversation from local list (slot is now free)
+            allConversations = allConversations.filter(function(c) {
+                return c.id !== conversationIdAtCall;
+            });
+            delete conversationSlotById[conversationIdAtCall];
+            if (slotAtCall) chatSlotStatusBySlot[slotAtCall] = 'available';
+
+            // Clear selection and hide panels
+            selId = null;
+            convEnded = false;
+            clearInterval(timerInterval); timerInterval = null;
+            clearInterval(pollInterval);  pollInterval  = null;
+
+            document.getElementById('hccEmpty').style.display = '';
+            var cp = document.getElementById('hccPanel');
+            if (cp) cp.style.display = 'none';
+            document.getElementById('hcdEmpty').style.display = '';
+            var dp = document.getElementById('hcDetailPanel');
+            if (dp) dp.style.display = 'none';
+
+            // Sync quick-status dropdown to Available
+            var quickSel = document.getElementById('hclQuickStatusSelect');
+            if (quickSel) {
+                quickSel.value = 'available';
+                var availOpt = quickSel.querySelector('option[value="available"]');
+                quickSel.style.color = availOpt ? availOpt.getAttribute('data-color') : '#27ae60';
+            }
+
+            updateStats();
+            updateSelectedSlotUiControls();
+            renderList();
+        })
+        .catch(function() {
+            if (btn) btn.disabled = false;
+            alert('Could not reach server.');
+        });
+    };
 
     window.hcSetTab = function(el, tab) {
         document.querySelectorAll('.hcl-tab').forEach(function(t) { t.classList.remove('active'); });
@@ -1256,14 +1768,15 @@
         selId = id;
         var conv = allConversations.find(function(c) { return c.id === id; });
         if (!conv) return;
+        var mappedSlot = conversationSlotById[id];
+        if (mappedSlot && mappedSlot >= 1 && mappedSlot <= 3) selectedChatSlot = mappedSlot;
+        updateSelectedSlotUiControls();
         renderList();
 
-        // Show chat panel
         document.getElementById('hccEmpty').style.display = 'none';
         var cp = document.getElementById('hccPanel');
         cp.style.display = 'flex'; cp.style.flexDirection = 'column'; cp.style.height = '100%';
 
-        // Topbar
         var color = ac(conv.category || 'ticket');
         var cav = document.getElementById('hccAv');
         cav.style.background = color;
@@ -1275,26 +1788,24 @@
         document.getElementById('hccMeta').textContent = conv.category + ' · ' + fmtDate(conv.createdAt);
 
         var isResolved = statusNorm(conv.status) === 'resolved';
-         applyResolveUiState(isResolved);
-         updateAcwState(isResolved, conv.id);
+        applyResolveUiState(isResolved);
+        updateAcwState(isResolved, conv.id);
 
-         // Set "In Chat" status if assigned and not resolved
-         var statusSelect = document.getElementById('agentStatusSelect');
-         var statusIndicator = document.getElementById('statusIndicator');
-         if (conv.isAssigned && !isResolved) {
-             if (statusSelect) statusSelect.value = 'inchat';
-             if (statusIndicator) statusIndicator.className = 'hcd-status-indicator inchat';
-             persistChatStatus('inchat', conv.id);
-         }
+        var statusSelect    = document.getElementById('agentStatusSelect');
+        var statusIndicator = document.getElementById('statusIndicator');
+        if (conv.isAssigned && !isResolved) {
+            if (statusSelect)    statusSelect.value = 'inchat';
+            if (statusIndicator) statusIndicator.className = 'hcd-status-indicator inchat';
+            persistChatStatus('inchat', conv.id);
+        }
 
-         // Claim bar
         var claimBar = document.getElementById('hccClaimBar');
         if (!conv.isAssigned) {
             claimBar.classList.remove('show');
             document.getElementById('hccInputRow').classList.add('ended');
             document.getElementById('hccChatIn').placeholder = 'Unassigned ticket. Waiting for admin assignment.';
-            var unassignedEndBtn = document.getElementById('hccEndBtn');
-            if (unassignedEndBtn) { unassignedEndBtn.disabled = true; unassignedEndBtn.style.opacity = '.45'; }
+            var endBtnU = document.getElementById('hccEndBtn');
+            if (endBtnU) { endBtnU.disabled = true; endBtnU.style.opacity = '.45'; }
         } else {
             claimBar.classList.remove('show');
             if (isResolved) {
@@ -1306,44 +1817,42 @@
             }
         }
 
-        // Detail panel
         document.getElementById('hcdEmpty').style.display = 'none';
         var dp = document.getElementById('hcDetailPanel');
         dp.style.display = 'flex'; dp.style.flexDirection = 'column';
-        document.getElementById('hcdSubj').textContent   = conv.question || '—';
-        document.getElementById('hcdICat').textContent   = conv.category || '—';
-        document.getElementById('hcdIType').textContent  = conv.userType || '—';
+        document.getElementById('hcdSubj').textContent    = conv.question || '—';
+        document.getElementById('hcdICat').textContent    = conv.category || '—';
+        document.getElementById('hcdIType').textContent   = conv.userType || '—';
         document.getElementById('hcdIStatus').textContent = conv.status || '—';
-        document.getElementById('hcdIDate').textContent  = fmtDate(conv.createdAt);
-        document.getElementById('hcdReason').textContent = conv.question || '—';
-        document.getElementById('hcdUpdateSel').value    = isResolved ? 'Resolved' : 'active';
+        document.getElementById('hcdIDate').textContent   = fmtDate(conv.createdAt);
+        document.getElementById('hcdReason').textContent  = conv.question || '—';
+        document.getElementById('hcdUpdateSel').value     = isResolved ? 'Resolved' : 'active';
 
-        // Reset timer and state
         convEnded = isResolved;
         inactivityEndingRequested = false;
-        document.getElementById('hccEndBtn').disabled = isResolved;
+        document.getElementById('hccEndBtn').disabled     = isResolved;
         document.getElementById('hccEndBtn').style.opacity = isResolved ? '.45' : '1';
         hideInactivityWarning();
+
         if (conv.isAssigned && !isResolved) {
             startTimer();
         } else {
-            clearInterval(timerInterval);
-            timerInterval = null;
+            clearInterval(timerInterval); timerInterval = null;
             var timerEl = document.getElementById('hccTimerVal');
             if (timerEl) timerEl.textContent = isResolved ? '0:00' : '5:00';
         }
 
-        // Load messages
+        applySelectedSlotRestrictions();
+
         loadMessages(id);
 
-        // Start polling for new messages every 5s
         if (pollInterval) clearInterval(pollInterval);
         pollInterval = setInterval(function() {
             if (selId === id) loadMessages(id, true);
         }, MESSAGE_POLL_MS);
     }
 
-    /* ── LOAD MESSAGES ────────────────────────────────────────── */
+    /* ── LOAD / RENDER MESSAGES ───────────────────────────────── */
     function loadMessages(conversationId, silent) {
         fetch('/Agent/GetMessages?conversationId=' + conversationId)
             .then(function(r) { return r.json(); })
@@ -1360,7 +1869,6 @@
 
         if (!silent) body.innerHTML = '';
 
-        // Build set of existing message IDs to avoid duplicates
         var existing = {};
         body.querySelectorAll('[data-msgid]').forEach(function(el) {
             existing[el.getAttribute('data-msgid')] = true;
@@ -1368,7 +1876,7 @@
 
         messages.forEach(function(m) {
             if (existing[m.id]) return;
-            var isAgent = m.senderRole === 'Agent';
+            var isAgent  = m.senderRole === 'Agent';
             var isSystem = m.senderRole === 'System';
 
             if (isSystem) {
@@ -1400,9 +1908,7 @@
             if (m.senderRole !== 'Agent' && m.senderRole !== 'System') {
                 var dt = m.createdAt ? new Date(m.createdAt) : null;
                 if (dt && !isNaN(dt.getTime())) {
-                    if (!latestParticipantMessage || dt > latestParticipantMessage) {
-                        latestParticipantMessage = dt;
-                    }
+                    if (!latestParticipantMessage || dt > latestParticipantMessage) latestParticipantMessage = dt;
                 }
             }
         });
@@ -1411,7 +1917,7 @@
             var previous = participantLastMessageByConversation[conversationId];
             var hadPrevious = previous instanceof Date;
             var previousMs = hadPrevious ? previous.getTime() : 0;
-            var currentMs = latestParticipantMessage.getTime();
+            var currentMs  = latestParticipantMessage.getTime();
             participantLastMessageByConversation[conversationId] = latestParticipantMessage;
             if (!hadPrevious || currentMs > previousMs) {
                 inactivityEndingRequested = false;
@@ -1427,19 +1933,14 @@
     /* ── SEND MESSAGE ─────────────────────────────────────────── */
     window.hcSend = function() {
         if (convEnded) return;
+        if (!isSelectedSlotActive()) { alert('Selected chat slot is not Active.'); return; }
         var inp  = document.getElementById('hccChatIn');
         var text = inp.value.trim();
         if (!text || !selId) return;
 
         var conv = allConversations.find(function(c) { return c.id === selId; });
-        if (conv && !conv.isAssigned) {
-            alert('This ticket is unassigned. Wait for admin assignment before sending a message.');
-            return;
-        }
-        if (conv && statusNorm(conv.status) === 'resolved') {
-            alert('This conversation is resolved. Unresolve it first to send a message.');
-            return;
-        }
+        if (conv && !conv.isAssigned) { alert('This ticket is unassigned.'); return; }
+        if (conv && statusNorm(conv.status) === 'resolved') { alert('This conversation is resolved.'); return; }
 
         fetch('/Agent/SendMessage', {
             method: 'POST',
@@ -1450,7 +1951,6 @@
         .then(function(data) {
             if (data.success) {
                 inp.value = '';
-                // Append message immediately to UI
                 var body = document.getElementById('hccBody');
                 var w = document.createElement('div');
                 w.className = 'hcc-msg agent';
@@ -1471,7 +1971,7 @@
         .catch(function() { alert('Could not reach server.'); });
     };
 
-    /* ── CLAIM CONVERSATION ───────────────────────────────────── */
+    /* ── CLAIM ────────────────────────────────────────────────── */
     window.hcClaim = function() {
         if (!selId) return;
         fetch('/Agent/ClaimConversation', {
@@ -1482,7 +1982,6 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
-                // Update local state
                 var conv = allConversations.find(function(c) { return c.id === selId; });
                 if (conv) { conv.isAssigned = true; conv.agentId = AGENT_USER_ID; }
                 document.getElementById('hccClaimBar').classList.remove('show');
@@ -1492,8 +1991,7 @@
                     startTimer();
                     persistChatStatus('inchat', selId);
                 }
-                renderList();
-                updateStats();
+                renderList(); updateStats();
             } else {
                 alert(data.message || 'Could not claim ticket.');
             }
@@ -1515,11 +2013,9 @@
                 var conv = allConversations.find(function(c) { return c.id === selId; });
                 if (conv) {
                     conv.status = 'Resolved';
-                    // prefer server-provided endTime if available
                     conv.endTime = data.endTime ? new Date(data.endTime).toISOString() : new Date().toISOString();
-                    // if server returned ACW timestamps, use them to set client timer
                     if (data.acwStart) {
-                        try { acwStartByConversation[selId] = new Date(data.acwStart).getTime(); } catch (e) { /* ignore */ }
+                        try { acwStartByConversation[selId] = new Date(data.acwStart).getTime(); } catch (e) { }
                     }
                 }
                 document.getElementById('hcdIStatus').textContent = 'Resolved';
@@ -1529,8 +2025,7 @@
                 persistAcwNotes();
                 appendSystemMsg('✓ Ticket marked as Resolved.');
                 endConv();
-                updateStats();
-                renderList();
+                updateStats(); renderList();
             } else {
                 alert(data.message || 'Could not resolve ticket.');
             }
@@ -1549,49 +2044,15 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            if (!data.success) {
-                alert(data.message || 'Could not update status.');
-                return;
-            }
-            // If server returned ACW timestamps, use them to restore timer precisely
+            if (!data.success) { alert(data.message || 'Could not update status.'); return; }
+
             if (data.acwStart) {
-                try { acwStartByConversation[selId] = new Date(data.acwStart).getTime(); } catch (e) { /* ignore and keep existing start */ }
-            }
-            if (data.status === 'Resolved') {
-                updateAcwState(true, selId);
-                persistChatStatus('acw', selId);
-                persistAcwNotes();
-                appendSystemMsg('✓ Ticket marked as Resolved.');
-                endConv();
-                updateStats();
-                renderList();
-            } else {
-                // Determine desired agent chat status from dropdown. If the agent chose Available
-                // persist that so the server can stamp ACW end and clear ConversationID.
-                var desiredAgentStatus = (document.getElementById('agentStatusSelect') || {}).value || 'inchat';
-                // Mark ACW ended locally immediately so UI and timer stop; server will also persist end timestamp
-                acwStartByConversation[selId] = 0;
-                updateAcwState(false, selId);
-                if (desiredAgentStatus === 'available') {
-                    persistChatStatus('available', selId);
-                } else {
-                    persistChatStatus('inchat', selId);
-                }
-                convEnded = false;
-                document.getElementById('hccInputRow').classList.remove('ended');
-                document.getElementById('hccChatIn').placeholder = 'Type a reply...';
-                var endBtn = document.getElementById('hccEndBtn');
-                if (endBtn) { endBtn.disabled = false; endBtn.style.opacity = '1'; }
-                startTimer();
-                if (pollInterval) clearInterval(pollInterval);
-                pollInterval = setInterval(function() {
-                    if (selId) loadMessages(selId, true);
-                }, MESSAGE_POLL_MS);
+                try { acwStartByConversation[selId] = new Date(data.acwStart).getTime(); } catch (e) { }
             }
 
             var conv = allConversations.find(function(c) { return c.id === selId; });
             if (conv) {
-                conv.status = data.status;
+                conv.status  = data.status;
                 conv.endTime = statusNorm(data.status) === 'resolved' ? new Date().toISOString() : null;
             }
 
@@ -1606,6 +2067,7 @@
                 appendSystemMsg('✓ Ticket marked as Resolved.');
                 endConv();
             } else {
+                acwStartByConversation[selId] = 0;
                 updateAcwState(false, selId);
                 persistChatStatus('inchat', selId);
                 convEnded = false;
@@ -1620,8 +2082,7 @@
                 }, MESSAGE_POLL_MS);
             }
 
-            updateStats();
-            renderList();
+            updateStats(); renderList();
         })
         .catch(function() { alert('Could not reach server.'); });
     };
@@ -1633,12 +2094,7 @@
         updateTimerDisplay();
         timerInterval = setInterval(function() {
             var baseline = getInactivityBaseline();
-            if (!baseline) {
-                timerSeconds = MAX_CHAT_SECONDS;
-                updateTimerDisplay();
-                return;
-            }
-
+            if (!baseline) { timerSeconds = MAX_CHAT_SECONDS; updateTimerDisplay(); return; }
             var elapsed = Math.floor((Date.now() - baseline.getTime()) / 1000);
             timerSeconds = Math.max(0, MAX_CHAT_SECONDS - elapsed);
             updateTimerDisplay();
@@ -1650,13 +2106,10 @@
         if (!selId) return null;
         var conv = allConversations.find(function(c) { return c.id === selId; });
         if (!conv) return null;
-
         var start = conv.startTime ? new Date(conv.startTime) : null;
         if (start && isNaN(start.getTime())) start = null;
-
         var participant = participantLastMessageByConversation[selId];
         if (participant && !(participant instanceof Date)) participant = null;
-
         if (start && participant) return participant > start ? participant : start;
         return participant || start;
     }
@@ -1677,24 +2130,13 @@
     function checkParticipantInactivity() {
         var conv = allConversations.find(function(c) { return c.id === selId; });
         if (!selId || convEnded || !conv || !conv.isAssigned || statusNorm(conv.status) === 'resolved') {
-            hideInactivityWarning();
-            return;
+            hideInactivityWarning(); return;
         }
-
         var baseline = getInactivityBaseline();
-        if (!baseline) {
-            hideInactivityWarning();
-            return;
-        }
-
+        if (!baseline) { hideInactivityWarning(); return; }
         var inactiveSeconds = Math.floor((Date.now() - baseline.getTime()) / 1000);
-        if (inactiveSeconds < INACTIVITY_WARN_SECONDS) {
-            hideInactivityWarning();
-            return;
-        }
-
+        if (inactiveSeconds < INACTIVITY_WARN_SECONDS) { hideInactivityWarning(); return; }
         var remaining = MAX_CHAT_SECONDS - inactiveSeconds;
-
         if (remaining <= 0) {
             if (!inactivityEndingRequested) {
                 inactivityEndingRequested = true;
@@ -1703,7 +2145,6 @@
             }
             return;
         }
-
         var warn = document.getElementById('hccInactiveWarn');
         if (!warn) return;
         warn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Participant inactive for ' + fmtMmSs(inactiveSeconds) + '. Auto-end in ' + fmtMmSs(remaining) + ' if no reply.';
@@ -1732,8 +2173,7 @@
 
     function endConv() {
         convEnded = true;
-        clearInterval(timerInterval);
-        timerInterval = null;
+        clearInterval(timerInterval); timerInterval = null;
         if (pollInterval) clearInterval(pollInterval);
         hideInactivityWarning();
         var timerEl = document.getElementById('hccTimerVal');
@@ -1776,8 +2216,7 @@
                 persistAcwNotes();
                 appendSystemMsg('✓ Conversation ended by ' + AGENT_NAME + '.');
                 endConv();
-                updateStats();
-                renderList();
+                updateStats(); renderList();
             } else {
                 alert(data.message || 'Could not end conversation.');
             }
@@ -1791,24 +2230,25 @@
         var ind = document.getElementById('statusIndicator');
         var status = sel.value;
         ind.className = 'hcd-status-indicator ' + status;
+        persistSelectedSlotStatus(status);
         var acwSection = document.getElementById('acwSection');
         if (acwSection?.classList.contains('show') && selId) {
             acwManualStatusByConversation[selId] = true;
             if (status !== 'acw') {
                 acwSection.classList.remove('show');
-                var acwNotes = document.getElementById('acwNotes');
+                var acwNotes   = document.getElementById('acwNotes');
                 var acwExpired = document.getElementById('acwExpired');
-                if (acwNotes) acwNotes.disabled = true;
+                if (acwNotes)   acwNotes.disabled = true;
                 if (acwExpired) acwExpired.classList.remove('show');
-                clearInterval(acwInterval);
-                acwInterval = null;
-                if (sel) {
-                    var acwOption = sel.querySelector('option[value="acw"]');
-                    if (acwOption) acwOption.hidden = true;
-                }
+                clearInterval(acwInterval); acwInterval = null;
+                var acwOption = sel.querySelector('option[value="acw"]');
+                if (acwOption) acwOption.hidden = true;
             }
         }
-       if (!selId) return;
+        if (!selId) {
+            applySelectedSlotRestrictions();
+            return;
+        }
         var conversationIdAtCall = selId;
         fetch('/Agent/UpdateAgentStatus', {
             method: 'POST',
@@ -1828,95 +2268,65 @@
                 alert((data && (data.message || data.detail)) || 'Failed to update chat status.');
                 return;
             }
-
-            // ACW manually ended by agent changing to Available
+            switchStatusDuration(data.status || status, 'chat');
             if (data.acwEnded) {
-                // Stamp the local ACW start as 0 so the timer stops
+                var slotAtCall = getSelectedChatSlot();
                 acwStartByConversation[conversationIdAtCall] = 0;
                 delete acwManualStatusByConversation[conversationIdAtCall];
-
-                // Collapse ACW section
-                var acwSec = document.getElementById('acwSection');
-                var acwNotes = document.getElementById('acwNotes');
-                var acwExpired = document.getElementById('acwExpired');
-                if (acwSec) acwSec.classList.remove('show');
-                if (acwNotes) acwNotes.disabled = true;
-                if (acwExpired) acwExpired.classList.remove('show');
-                clearInterval(acwInterval);
-                acwInterval = null;
-
-                // Hide the ACW option from the dropdown
+                var acwSec    = document.getElementById('acwSection');
+                var acwNotes  = document.getElementById('acwNotes');
+                var acwExpire = document.getElementById('acwExpired');
+                if (acwSec)    acwSec.classList.remove('show');
+                if (acwNotes)  acwNotes.disabled = true;
+                if (acwExpire) acwExpire.classList.remove('show');
+                clearInterval(acwInterval); acwInterval = null;
                 var acwOpt = sel.querySelector('option[value="acw"]');
                 if (acwOpt) acwOpt.hidden = true;
 
-                // Remove the conversation from the local list so the slot clears
-                allConversations = allConversations.filter(function(c) {
-                    return c.id !== conversationIdAtCall;
-                });
+                allConversations = allConversations.filter(function(c) { return c.id !== conversationIdAtCall; });
                 delete conversationSlotById[conversationIdAtCall];
-
-                // Deselect and reset the chat/detail panels
-                selId = null;
-                convEnded = false;
-                clearInterval(timerInterval);
-                timerInterval = null;
-                clearInterval(pollInterval);
-                pollInterval = null;
-
+                if (slotAtCall) chatSlotStatusBySlot[slotAtCall] = 'available';
+                selId = null; convEnded = false;
+                clearInterval(timerInterval); timerInterval = null;
+                clearInterval(pollInterval);  pollInterval  = null;
                 document.getElementById('hccEmpty').style.display = '';
                 var cp = document.getElementById('hccPanel');
                 if (cp) cp.style.display = 'none';
                 document.getElementById('hcdEmpty').style.display = '';
                 var dp = document.getElementById('hcDetailPanel');
                 if (dp) dp.style.display = 'none';
-
-                updateStats();
-                renderList();
+                updateSelectedSlotUiControls();
+                updateStats(); renderList();
             }
         })
-        .catch(function() {
-            alert('Could not reach server while updating chat status.');
-        });
+        .catch(function() { alert('Could not reach server while updating chat status.'); });
     };
 
-    fetch('/Agent/GetAgentStatus?agentName=' + encodeURIComponent(AGENT_NAME))
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.success) {
-                var sel = document.getElementById('agentStatusSelect');
-                var ind = document.getElementById('statusIndicator');
-                if (sel) sel.value = data.status;
-                if (ind) ind.className = 'hcd-status-indicator ' + data.status;
-            }
-        })
-        .catch(function() {});
+    syncAgentStatusFromServer();
 
     window.hcAttach = function() { alert('Attach — connect to your file upload endpoint.'); };
 
     /* ── QUICK STATUS ─────────────────────────────────────────── */
     window.updateQuickStatus = function() {
-    var sel = document.getElementById('hclQuickStatusSelect');
-    if (!sel) return;
-    var status = sel.value;
-    // Block if any active chat exists
-    var hasActive = allConversations.some(function(c) {
-        return c.isAssigned && c.status && c.status.toLowerCase() === 'active';
-    });
-    if (hasActive && status !== 'available') {
-        alert('Cannot change agent status while a conversation is Active.');
-        sel.value = 'available';
-        var availOpt = sel.querySelector('option[value="available"]');
-        var availColor = availOpt ? availOpt.getAttribute('data-color') : '#27ae60';
-        sel.style.color = availColor;
-        return;
-    }
-    var selectedOption = sel.options[sel.selectedIndex];
-    var color = selectedOption.getAttribute('data-color') || '#333';
-    // Smooth color transition
-    sel.style.transition = 'color 0.3s ease';
-    sel.style.color = color;
+        var sel = document.getElementById('hclQuickStatusSelect');
+        if (!sel) return;
+        var status = sel.value;
+        var hasActive = allConversations.some(function(c) {
+            return c.isAssigned && c.status && c.status.toLowerCase() === 'active';
+        });
+        if (hasActive && status !== 'available') {
+            alert('Cannot change agent status while a conversation is Active.');
+            sel.value = 'available';
+            var availOpt = sel.querySelector('option[value="available"]');
+            sel.style.color = availOpt ? availOpt.getAttribute('data-color') : '#27ae60';
+            return;
+        }
+        var selectedOption = sel.options[sel.selectedIndex];
+        var color = selectedOption.getAttribute('data-color') || '#333';
+        sel.style.transition = 'color 0.3s ease';
+        sel.style.color = color;
 
-    fetch('/Agent/UpdateAgentStatus', {
+        fetch('/Agent/UpdateAgentStatus', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ agentName: AGENT_NAME, status: status, isChatStatus: false, agentUserId: AGENT_USER_ID })
@@ -1929,54 +2339,50 @@
                     + '&agentUserId=' + encodeURIComponent(AGENT_USER_ID)
                     + '&agentName=' + encodeURIComponent(AGENT_NAME), { method: 'POST' });
             }
+            switchStatusDuration(data.status || status, 'agent');
             return null;
         })
-        .then(function(r) { if (r) return r.json(); return null; })
+        .then(function(r) {
+            if (!r) return null;
+            return r.json().then(function(directData) {
+                if (directData && directData.success) {
+                    switchStatusDuration(directData.status || status, 'agent');
+                }
+                return directData;
+            });
+        })
         .catch(function(e) { console.error('Quick status update failed:', e); });
     };
 
-    // Initialize quick status dropdown color on page load
     (function() {
         var sel = document.getElementById('hclQuickStatusSelect');
         if (sel) {
-            // Set initial color
             var selectedOption = sel.options[sel.selectedIndex];
             var color = selectedOption.getAttribute('data-color') || '#333';
             sel.style.transition = 'color 0.3s ease';
             sel.style.color = color;
-
-            // Add smooth transition on input change
-            sel.addEventListener('change', function() {
-                sel.style.transition = 'color 0.3s ease';
-            });
-
-            // Subtle animation on hover
-            sel.addEventListener('mouseenter', function() {
-                sel.style.transform = 'translateY(-1px)';
-                sel.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.08)';
-            });
-
-            sel.addEventListener('mouseleave', function() {
-                sel.style.transform = 'translateY(0)';
-            });
+            sel.addEventListener('change', function() { sel.style.transition = 'color 0.3s ease'; });
+            sel.addEventListener('mouseenter', function() { sel.style.transform = 'translateY(-1px)'; sel.style.boxShadow = '0 2px 6px rgba(0,0,0,.08)'; });
+            sel.addEventListener('mouseleave', function() { sel.style.transform = 'translateY(0)'; });
         }
     })();
 
     /* ── INIT ─────────────────────────────────────────────────── */
     initResizers();
+    initStatusDurationTracker(document.getElementById('hclQuickStatusSelect')?.value || 'available');
+    updateSelectedSlotUiControls();
+    loadChatSlotStatuses();
     var acwNotesEl = document.getElementById('acwNotes');
     if (acwNotesEl) {
         acwNotesEl.addEventListener('input', function() {
             clearTimeout(notesSaveTimeout);
-            notesSaveTimeout = setTimeout(function() {
-                persistAcwNotes();
-            }, 500);
+            notesSaveTimeout = setTimeout(function() { persistAcwNotes(); }, 500);
         });
     }
     loadConversations(true);
-    conversationsRefreshInterval = setInterval(function() {
-        loadConversations(false);
-    }, AUTO_REFRESH_MS);
+    conversationsRefreshInterval = setInterval(function() { loadConversations(false); }, AUTO_REFRESH_MS);
+    agentStatusRefreshInterval = setInterval(function() { syncAgentStatusFromServer(); }, STATUS_REFRESH_MS);
+    slotStatusRefreshInterval = setInterval(function() { loadChatSlotStatuses(); }, STATUS_REFRESH_MS);
 
 })();
 </script>
