@@ -3,8 +3,6 @@ using NextHorizon.Models;
 using NextHorizon.Filters;
 using Microsoft.EntityFrameworkCore;
 using System;
-using System.Data;
-using Microsoft.Extensions.Caching.Memory;
 
 namespace NextHorizon.Controllers
 {
@@ -12,18 +10,10 @@ namespace NextHorizon.Controllers
     public class AgentController : Controller
     {
         private readonly AppDbContext _context;
-        private readonly IMemoryCache _cache;
 
-        public AgentController(AppDbContext context, IMemoryCache cache)
+        public AgentController(AppDbContext context)
         {
             _context = context;
-            _cache = cache;
-        }
-
-        private string GetConversationsCacheKey(int userId) => $"GetConversations_{userId}";
-        private void InvalidateConversationsCache(int userId)
-        {
-            try { _cache?.Remove(GetConversationsCacheKey(userId)); } catch { }
         }
 
         public IActionResult HelpCenter()
@@ -217,7 +207,6 @@ namespace NextHorizon.Controllers
             conversation.StartTime = DateTime.Now;
             await _context.SaveChangesAsync();
             await SetConversationChatStatusAsync(userId, HttpContext.Session.GetString("FullName") ?? string.Empty, model.ConversationId, "In Chat", null, null);
-            InvalidateConversationsCache(userId);
 
             return Json(new { success = true, conversationId = model.ConversationId, endTime = conversation.EndTime });
         }
@@ -252,7 +241,6 @@ namespace NextHorizon.Controllers
 
             _context.SupportMessages.Add(message);
             await _context.SaveChangesAsync();
-            InvalidateConversationsCache(userId);
 
             return Json(new
             {
@@ -285,7 +273,6 @@ namespace NextHorizon.Controllers
             var agentName = HttpContext.Session.GetString("FullName") ?? string.Empty;
             await UpdateAcwTrackingAsync(model.ConversationId, null, agentName, userId, true);
             await SetConversationChatStatusAsync(userId, agentName, model.ConversationId, "ACW", null, null);
-            InvalidateConversationsCache(userId);
 
             return Json(new { success = true, conversationId = model.ConversationId, endTime = conversation.EndTime });
         }
@@ -312,8 +299,6 @@ namespace NextHorizon.Controllers
             var agentName = HttpContext.Session.GetString("FullName") ?? string.Empty;
             await UpdateAcwTrackingAsync(model.ConversationId, null, agentName, userId, true);
             await SetConversationChatStatusAsync(userId, agentName, model.ConversationId, "ACW", null, null);
-
-            InvalidateConversationsCache(userId);
 
             var latestAgentRow = await _context.Agents
                 .Where(a => a.ConversationID == model.ConversationId)
@@ -369,8 +354,6 @@ namespace NextHorizon.Controllers
 
             await SetConversationChatStatusAsync(userId, agentName, model.ConversationId, chatStatus, null, null);
 
-            InvalidateConversationsCache(userId);
-
             var latestAgentRow = await _context.Agents
                 .Where(a => a.ConversationID == model.ConversationId)
                 .OrderByDescending(a => a.ChatID)
@@ -401,8 +384,102 @@ namespace NextHorizon.Controllers
                 conversationId = model.ConversationId,
                 status = normalizedStatus,
                 endTime = conversation.EndTime,
-                acwStart,
-                acwEnd
+                acwStart = acwStart,
+                acwEnd = acwEnd
+            });
+        }
+
+        // ── END ACW ───────────────────────────────────────────────
+        // Called when agent clicks "I'm Available" in the ACW section.
+        // Stamps ACWEndTime = now (the button-press moment), sets agent status
+        // to Available, and clears the ConversationID from the relevant ChatSlot.
+
+        [HttpPost]
+        public async Task<IActionResult> EndAcw([FromBody] EndAcwRequest model)
+        {
+            var userId = HttpContext.Session.GetInt32("UserId") ?? 0;
+            if (userId == 0)
+                return Json(new { success = false, message = "Not logged in." });
+
+            if (model == null || model.ConversationId <= 0)
+                return BadRequest(new { success = false, message = "Invalid request." });
+
+            var agentName = HttpContext.Session.GetString("FullName") ?? string.Empty;
+            var acwEndTime = DateTime.Now; // button-press moment is the official ACW end
+
+            // 1. Stamp ACWEndTime in dbo.Agents for this conversation
+            try
+            {
+                await _context.Database.ExecuteSqlRawAsync(
+                    @"UPDATE dbo.Agents
+                      SET ACWEndTime = {0}
+                      WHERE ConversationID = {1}
+                        AND (ACWEndTime IS NULL OR ACWEndTime < ACWStartTime)",
+                    acwEndTime, model.ConversationId);
+            }
+            catch { /* non-fatal */ }
+
+            // 2. Set agent status to Available in Agents table
+            var agentRows = await _context.Agents
+                .Where(a => (userId != 0 && a.AgentID == userId) ||
+                            (!string.IsNullOrWhiteSpace(agentName) && a.AgentName == agentName))
+                .ToListAsync();
+
+            foreach (var row in agentRows)
+            {
+                row.AgentStatus = "Available";
+                row.ChatStatus = "Available";
+            }
+            if (agentRows.Count > 0)
+                await _context.SaveChangesAsync();
+
+            // 3. Determine which ChatSlot held this conversation and clear its ConversationID
+            var slot = model.ChatSlot;
+            if (!slot.HasValue || slot < 1 || slot > 3)
+            {
+                // Fall back: look it up from Agents table
+                var agentRow = await _context.Agents
+                    .Where(a => a.ConversationID == model.ConversationId)
+                    .OrderByDescending(a => a.ChatID)
+                    .FirstOrDefaultAsync();
+                slot = agentRow?.ChatSlot;
+            }
+
+            if (slot.HasValue && slot >= 1 && slot <= 3)
+            {
+                var tableName = $"dbo.ChatSlot_{slot}";
+                var clearSql = $@"
+IF OBJECT_ID('{tableName}', 'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
+    BEGIN
+        UPDATE {tableName}
+        SET ConversationID = NULL,
+            ChatStatus     = 'Available',
+            AgentStatus    = 'Available'
+        WHERE ConversationID = {{0}};
+ 
+        IF COL_LENGTH('{tableName}', 'LastUpdatedAt') IS NOT NULL
+            UPDATE {tableName} SET LastUpdatedAt = GETDATE() WHERE ConversationID IS NULL AND AgentId = {{1}};
+    END
+END";
+                try
+                {
+                    await _context.Database.ExecuteSqlRawAsync(clearSql, model.ConversationId, userId);
+                }
+                catch { /* non-fatal */ }
+            }
+
+            // 4. Update agent-level status across all 3 ChatSlot tables
+            var resolvedAgentName = ResolveAgentName(agentName);
+            await UpdateAllChatSlotAgentStatusAsync(resolvedAgentName, userId, "Available");
+
+            return Json(new
+            {
+                success = true,
+                acwEndTime = acwEndTime,
+                conversationId = model.ConversationId,
+                clearedSlot = slot
             });
         }
 
@@ -481,102 +558,16 @@ namespace NextHorizon.Controllers
                             return Json(new { success = false, message = "ACW can only start after chat is resolved." });
                     }
 
-                    // ── ACW → Available: stamp ACWEndTime, clear ConversationID ──────
-                    if (string.Equals(normalizedChatStatus, "Available", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var now = DateTime.Now;
-
-                        // Stamp ACWEndTime in dbo.Agents
-                        await _context.Database.ExecuteSqlRawAsync(@"
-IF OBJECT_ID('dbo.Agents', 'U') IS NOT NULL
-BEGIN
-    IF COL_LENGTH('dbo.Agents', 'ACWEndTime') IS NOT NULL
-    BEGIN
-        UPDATE dbo.Agents
-        SET ACWEndTime = ISNULL(ACWEndTime, {0})
-        WHERE ConversationID = {1}
-          AND (ACWEndTime IS NULL OR ACWEndTime < ACWStartTime);
-    END
-END", now, model.ConversationId);
-
-                        // Stamp ACWEndTime + clear ConversationID in ChatSlot tables
-                        for (var slot = 1; slot <= 3; slot++)
-                        {
-                            var tableName = $"dbo.ChatSlot_{slot}";
-                            var slotSql = $@"
-IF OBJECT_ID('{tableName}', 'U') IS NOT NULL
-BEGIN
-    IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
-    BEGIN
-        IF COL_LENGTH('{tableName}', 'ACWEndTime') IS NOT NULL
-        BEGIN
-            UPDATE {tableName}
-            SET ACWEndTime = ISNULL(ACWEndTime, {{0}}),
-                ChatStatus  = 'Available',
-                ConversationID = NULL
-            WHERE ConversationID = {{1}}
-              AND ({{2}} <= 0 OR AgentId = {{2}});
-
-            IF COL_LENGTH('{tableName}', 'LastUpdatedAt') IS NOT NULL
-            BEGIN
-                UPDATE {tableName}
-                SET LastUpdatedAt = GETDATE()
-                WHERE ({{2}} <= 0 OR AgentId = {{2}})
-                  AND ConversationID IS NULL;
-            END
-        END
-        ELSE
-        BEGIN
-            UPDATE {tableName}
-            SET ChatStatus  = 'Available',
-                ConversationID = NULL
-            WHERE ConversationID = {{1}}
-              AND ({{2}} <= 0 OR AgentId = {{2}});
-        END
-    END
-END";
-                            await _context.Database.ExecuteSqlRawAsync(slotSql, now, model.ConversationId, userId);
-                        }
-
-                        // Clear ConversationID on dbo.Agents rows and set ChatStatus = Available
-                        var agentRows = await _context.Agents
-                            .Where(a => a.ConversationID == model.ConversationId
-                                && (userId <= 0 || a.AgentID == userId))
-                            .ToListAsync();
-
-                        foreach (var row in agentRows)
-                        {
-                            row.ConversationID = null;
-                            row.ChatStatus = "Available";
-                            row.AgentStatus = "Available";
-                        }
-
-                        if (agentRows.Count > 0)
-                            await _context.SaveChangesAsync();
-
-                        return Json(new
-                        {
-                            success = true,
-                            status = "Available",
-                            acwEnded = true,
-                            acwEndTime = now
-                        });
-                    }
-                    // ── End ACW → Available special case ───────────────────────────
-
                     await SetConversationChatStatusAsync(userId, resolvedAgentName, model.ConversationId, normalizedChatStatus, model.ChatSlot, null);
 
                     try
                     {
-                        await UpdateAcwTrackingAsync(model.ConversationId, model.ChatSlot, resolvedAgentName, userId,
-                            string.Equals(normalizedChatStatus, "ACW", StringComparison.OrdinalIgnoreCase));
+                        await UpdateAcwTrackingAsync(model.ConversationId, model.ChatSlot, resolvedAgentName, userId, string.Equals(normalizedChatStatus, "ACW", StringComparison.OrdinalIgnoreCase));
                         if (model.ChatSlot.HasValue)
-                            await UpdateChatSlotAcwTimesAsync(model.ChatSlot.Value, model.ConversationId, resolvedAgentName, userId,
-                                string.Equals(normalizedChatStatus, "ACW", StringComparison.OrdinalIgnoreCase));
+                            await UpdateChatSlotAcwTimesAsync(model.ChatSlot.Value, model.ConversationId, resolvedAgentName, userId, string.Equals(normalizedChatStatus, "ACW", StringComparison.OrdinalIgnoreCase));
                     }
                     catch { }
 
-                    InvalidateConversationsCache(userId);
                     return Json(new { success = true, status = normalizedChatStatus });
                 }
 
@@ -665,7 +656,6 @@ END";
             userId = await ResolveAgentUserIdAsync(userId, agentName);
 
             await UpdateAgentNotesAsync(userId, agentName, model.ConversationId, model.ChatSlot, model.Notes ?? string.Empty);
-            InvalidateConversationsCache(userId);
             return Json(new { success = true });
         }
 
@@ -808,8 +798,7 @@ END";
                         PreviewQuestion = conversation?.Question ?? "Status update",
                         ChatSlot = chatSlot.HasValue && chatSlot.Value >= 1 && chatSlot.Value <= 3 ? chatSlot.Value : 1,
                         ChatStatus = persistedAgentChatStatus,
-                        AgentStatus = MapChatStatusToAgentStatus(persistedAgentChatStatus)
-                            ?? (string.IsNullOrWhiteSpace(latestAgent?.AgentStatus) ? "Available" : latestAgent.AgentStatus)
+                        AgentStatus = MapChatStatusToAgentStatus(persistedAgentChatStatus) ?? (string.IsNullOrWhiteSpace(latestAgent?.AgentStatus) ? "Available" : latestAgent.AgentStatus)
                     };
 
                     _context.Agents.Add(createdRow);
@@ -890,7 +879,7 @@ BEGIN
                 OR LOWER(ISNULL(AgentName, '')) LIKE '%' + LOWER(LTRIM(RTRIM({{1}}))) + '%'
            ));
     END
-
+ 
     IF COL_LENGTH('{tableName}', 'AgentStatusLastUpdatedAt') IS NOT NULL
     BEGIN
         UPDATE {tableName}
@@ -954,7 +943,7 @@ BEGIN
                ));
         END
     END
-
+ 
     IF COL_LENGTH('{tableName}', 'ChatStatusLastUpdatedAt') IS NOT NULL
     BEGIN
         IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
@@ -1029,7 +1018,7 @@ BEGIN
             END
         END
     END
-
+ 
     IF COL_LENGTH('{tableName}', 'NotesLastUpdatedAt') IS NOT NULL
     BEGIN
         IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
@@ -1069,7 +1058,7 @@ BEGIN
         WHERE ConversationID = {1}
           AND ({4} = 0 OR ChatSlot = {4});
     END
-
+ 
     IF COL_LENGTH('dbo.Agents', 'NotesLastUpdatedAt') IS NOT NULL
     BEGIN
         UPDATE dbo.Agents
@@ -1109,7 +1098,7 @@ BEGIN
             WHERE ConversationID = {0}
               AND ({1} = 0 OR ChatSlot = {1});
         END
-
+ 
         IF COL_LENGTH('dbo.Agents', 'ACWEndTime') IS NOT NULL
         BEGIN
             UPDATE dbo.Agents
@@ -1163,7 +1152,7 @@ BEGIN
                    ));
             END
         END
-
+ 
         IF COL_LENGTH('{tableName}', 'ACWEndTime') IS NOT NULL
         BEGIN
             IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
@@ -1327,5 +1316,11 @@ END";
     {
         public int ConversationId { get; set; }
         public string Status { get; set; } = string.Empty;
+    }
+
+    public class EndAcwRequest
+    {
+        public int ConversationId { get; set; }
+        public int? ChatSlot { get; set; }
     }
 }
