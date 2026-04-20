@@ -440,12 +440,20 @@ BEGIN
     IF COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
     BEGIN
         UPDATE {tableName}
-        SET ConversationID = NULL
+        SET ConversationID = NULL,
+            ChatStatus     = 'Available',
+            AgentStatus    = 'Available'
         WHERE ConversationID = {{0}};
-
-        IF COL_LENGTH('{tableName}', 'LastUpdatedAt') IS NOT NULL
-            UPDATE {tableName} SET LastUpdatedAt = GETDATE() WHERE AgentId = {{1}} AND ConversationID IS NULL;
     END
+
+    UPDATE {tableName}
+    SET ChatStatus   = 'Available',
+        AgentStatus  = 'Available'
+    WHERE AgentId = {{1}}
+       OR ({{1}} <= 0 AND AgentName = (SELECT TOP 1 AgentName FROM {tableName} WHERE AgentId = {{1}}));
+
+    IF COL_LENGTH('{tableName}', 'LastUpdatedAt') IS NOT NULL
+        UPDATE {tableName} SET LastUpdatedAt = GETDATE() WHERE AgentId = {{1}};
 END";
                 try
                 {
