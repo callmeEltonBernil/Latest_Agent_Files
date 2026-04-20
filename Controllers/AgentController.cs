@@ -1312,7 +1312,10 @@ BEGIN
         IF COL_LENGTH('dbo.Agents', 'ACWStartTime') IS NOT NULL
         BEGIN
             UPDATE dbo.Agents
-            SET ACWStartTime = GETDATE()
+            SET ACWStartTime = ISNULL(
+                (SELECT TOP 1 EndTime FROM dbo.SupportFAQs WHERE Id = {0} AND EndTime IS NOT NULL),
+                GETDATE()
+            )
             WHERE ConversationID = {0}
               AND ({1} = 0 OR ChatSlot = {1});
         END

@@ -851,9 +851,9 @@
 
     var MAX_CHAT_SECONDS = 300;
     var INACTIVITY_WARN_SECONDS = 120;
-    var AUTO_REFRESH_MS = 1000;
-    var MESSAGE_POLL_MS = 1000;
-    var STATUS_REFRESH_MS = 1000;
+    var AUTO_REFRESH_MS = 3000;
+    var MESSAGE_POLL_MS = 3000;
+    var STATUS_REFRESH_MS = 3000;
 
     const COLS = ['#2980b9','#e67e22','#27ae60','#8e44ad','#e74c3c','#16a085','#d35400','#2c3e50'];
     function ac(n) { let h=0; for(let i=0;i<(n||'').length;i++) h=n.charCodeAt(i)+((h<<5)-h); return COLS[Math.abs(h)%COLS.length]; }
