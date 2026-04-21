@@ -121,6 +121,22 @@ namespace NextHorizon.Controllers
                     acwEnd = agentRow.ACWEndTime;
                 }
 
+                // Auto-resolve: stamp ACWStartTime if missing for resolved conversations
+                if (string.Equals(f.Status, "Resolved", StringComparison.OrdinalIgnoreCase) && !acwStart.HasValue)
+                {
+                    try
+                    {
+                        await EnsureAcwStartTimeSetAsync(f.Id);
+                        var refreshed = await _context.Agents
+                            .Where(a => a.ConversationID == f.Id)
+                            .OrderByDescending(a => a.ChatID)
+                            .FirstOrDefaultAsync();
+                        acwStart = refreshed?.ACWStartTime;
+                        acwEnd = refreshed?.ACWEndTime;
+                    }
+                    catch { }
+                }
+
                 if (acwStart.HasValue && !acwEnd.HasValue)
                 {
                     var cap = acwStart.Value.AddMinutes(2);
@@ -1309,7 +1325,7 @@ IF OBJECT_ID('dbo.Agents', 'U') IS NOT NULL
 BEGIN
     IF {2} = 1
     BEGIN
-        IF COL_LENGTH('dbo.Agents', 'ACWStartTime') IS NOT NULL
+     IF COL_LENGTH('dbo.Agents', 'ACWStartTime') IS NOT NULL
         BEGIN
             UPDATE dbo.Agents
             SET ACWStartTime = ISNULL(
@@ -1317,7 +1333,8 @@ BEGIN
                 GETDATE()
             )
             WHERE ConversationID = {0}
-              AND ({1} = 0 OR ChatSlot = {1});
+              AND ({1} = 0 OR ChatSlot = {1})
+              AND ACWStartTime IS NULL;
         END
 
         IF COL_LENGTH('dbo.Agents', 'ACWEndTime') IS NOT NULL
@@ -1500,6 +1517,21 @@ END";
             var username = HttpContext.Session.GetString("Username") ?? string.Empty;
             if (IsUsableAgentName(username)) return username.Trim();
             return userId > 0 ? $"Agent {userId}" : "Agent";
+        }
+
+
+        private async Task EnsureAcwStartTimeSetAsync(int conversationId)
+        {
+            await _context.Database.ExecuteSqlRawAsync(@"
+        UPDATE dbo.Agents
+        SET ACWStartTime = ISNULL(
+            (SELECT TOP 1 EndTime FROM dbo.SupportFAQs 
+             WHERE Id = {0} AND EndTime IS NOT NULL),
+            GETDATE()
+        )
+        WHERE ConversationID = {0}
+          AND ACWStartTime IS NULL",
+                conversationId);
         }
     }
 
