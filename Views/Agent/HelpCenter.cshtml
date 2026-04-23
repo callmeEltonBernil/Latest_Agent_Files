@@ -853,7 +853,7 @@
     var INACTIVITY_WARN_SECONDS = 120;
     var AUTO_REFRESH_MS = 8000;
     var MESSAGE_POLL_MS = 5000;
-    var STATUS_REFRESH_MS = 10000;
+    var STATUS_REFRESH_MS = 2000;
 
     const COLS = ['#2980b9','#e67e22','#27ae60','#8e44ad','#e74c3c','#16a085','#d35400','#2c3e50'];
     function ac(n) { let h=0; for(let i=0;i<(n||'').length;i++) h=n.charCodeAt(i)+((h<<5)-h); return COLS[Math.abs(h)%COLS.length]; }
@@ -1058,6 +1058,7 @@
 
     function ensureDurationStateShape(state) {
         if (!state || typeof state !== 'object') state = {};
+        var hasPausedFlag = Object.prototype.hasOwnProperty.call(state, 'isPaused');
         if (!state.totals || typeof state.totals !== 'object') state.totals = createDurationTotals();
         STATUS_DURATION_KEYS.forEach(function(k) {
             if (typeof state.totals[k] !== 'number' || isNaN(state.totals[k])) state.totals[k] = 0;
@@ -1066,6 +1067,8 @@
         state.currentStatus = normalizeDurationStatus(state.currentStatus || 'available');
         state.currentStartMs = Number(state.currentStartMs || Date.now());
         if (isNaN(state.currentStartMs) || state.currentStartMs <= 0) state.currentStartMs = Date.now();
+        state.isPaused = !!state.isPaused;
+        if (state.currentStatus === 'eos' && !hasPausedFlag) state.isPaused = true;
         return state;
     }
 
@@ -1099,7 +1102,7 @@
         if (!statusDurationState) return 0;
         var s = normalizeDurationStatus(status);
         var total = Math.floor(statusDurationState.totals[s] || 0);
-        if (statusDurationState.currentStatus === s && statusDurationState.currentStartMs) {
+        if (!statusDurationState.isPaused && statusDurationState.currentStatus === s && statusDurationState.currentStartMs) {
             total += Math.max(0, Math.floor((nowMs - statusDurationState.currentStartMs) / 1000));
         }
         return total;
@@ -1109,7 +1112,9 @@
         if (!statusDurationState) return;
         var nowMs = Date.now();
         var current = normalizeDurationStatus(statusDurationState.currentStatus);
-        var currentElapsed = Math.max(0, Math.floor((nowMs - statusDurationState.currentStartMs) / 1000));
+        var currentElapsed = statusDurationState.isPaused
+            ? 0
+            : Math.max(0, Math.floor((nowMs - statusDurationState.currentStartMs) / 1000));
 
         var currentLbl = document.getElementById('statusDurationCurrentLabel');
         var currentVal = document.getElementById('statusDurationCurrentValue');
@@ -1140,6 +1145,31 @@
 
         var nowMs = Date.now();
         var current = normalizeDurationStatus(statusDurationState.currentStatus);
+
+        if (source === 'agent' && next === 'eos') {
+            statusDurationState.totals = createDurationTotals();
+            statusDurationState.logs = [];
+            statusDurationState.currentStatus = 'eos';
+            statusDurationState.currentStartMs = nowMs;
+            statusDurationState.isPaused = true;
+            saveDurationState();
+            renderStatusDurations();
+            return;
+        }
+
+        if (statusDurationState.isPaused) {
+            if (next === 'eos') {
+                renderStatusDurations();
+                return;
+            }
+
+            statusDurationState.currentStatus = next;
+            statusDurationState.currentStartMs = nowMs;
+            statusDurationState.isPaused = false;
+            saveDurationState();
+            renderStatusDurations();
+            return;
+        }
 
         if (current === next) {
             renderStatusDurations();

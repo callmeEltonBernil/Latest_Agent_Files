@@ -89,18 +89,26 @@ namespace NextHorizon.Controllers
             if (userId == 0)
                 return Json(new { success = false, message = "Not logged in." });
 
+            var now = DateTime.Now;
+            var dayStart = now.Date;
+            var nextDayStart = dayStart.AddDays(1);
+
             var convos = await _context.SupportFAQs
-                .Where(f => f.AgentId == userId || f.AgentId == null)
+                .AsNoTracking()
+                .Where(f => (f.AgentId == userId || f.AgentId == null)
+                    && (f.Status != "Resolved"
+                        || (f.EndTime.HasValue && f.EndTime.Value >= dayStart && f.EndTime.Value < nextDayStart)))
                 .OrderByDescending(f => f.CreatedAt)
                 .ToListAsync();
 
-            var results = new List<object>();
+            var results = new List<object>(convos.Count);
 
             var convoIds = convos.Select(c => c.Id).ToList();
             var latestAgents = new List<Models.Agent>();
             if (convoIds.Count > 0)
             {
                 latestAgents = await _context.Agents
+                    .AsNoTracking()
                     .Where(a => a.ConversationID.HasValue && convoIds.Contains(a.ConversationID.Value))
                     .GroupBy(a => a.ConversationID.Value)
                     .Select(g => g.OrderByDescending(a => a.ChatID).FirstOrDefault())
@@ -121,58 +129,18 @@ namespace NextHorizon.Controllers
                     acwEnd = agentRow.ACWEndTime;
                 }
 
-                // Auto-resolve: stamp ACWStartTime if missing for resolved conversations
+                // Read-only fallback for resolved conversations with missing ACWStartTime.
                 if (string.Equals(f.Status, "Resolved", StringComparison.OrdinalIgnoreCase) && !acwStart.HasValue)
                 {
-                    try
-                    {
-                        await EnsureAcwStartTimeSetAsync(f.Id);
-                        var refreshed = await _context.Agents
-                            .Where(a => a.ConversationID == f.Id)
-                            .OrderByDescending(a => a.ChatID)
-                            .FirstOrDefaultAsync();
-                        acwStart = refreshed?.ACWStartTime;
-                        acwEnd = refreshed?.ACWEndTime;
-                    }
-                    catch { }
+                    acwStart = f.EndTime;
                 }
 
                 if (acwStart.HasValue && !acwEnd.HasValue)
                 {
                     var cap = acwStart.Value.AddMinutes(2);
-                    if (DateTime.Now > cap)
+                    if (now > cap)
                     {
                         acwEnd = cap;
-                        try
-                        {
-                            await _context.Database.ExecuteSqlRawAsync(
-                                "UPDATE dbo.Agents SET ACWEndTime = {0} WHERE ConversationID = {1} AND (ACWEndTime IS NULL OR ACWEndTime < ACWStartTime)",
-                                acwEnd, f.Id);
-                        }
-                        catch { }
-                    }
-                }
-
-                // If ACW has ended (either just now or previously), clear the ChatSlot rows
-                if (acwEnd.HasValue)
-                {
-                    for (int slot = 1; slot <= 3; slot++)
-                    {
-                        var tableName = $"dbo.ChatSlot_{slot}";
-                        try
-                        {
-                            await _context.Database.ExecuteSqlRawAsync($@"
-                IF OBJECT_ID('{tableName}', 'U') IS NOT NULL
-                AND COL_LENGTH('{tableName}', 'ConversationID') IS NOT NULL
-                BEGIN
-                    UPDATE {tableName}
-                    SET ConversationID = NULL,
-                        ChatStatus     = 'Available',
-                        AgentStatus    = 'Available'
-                    WHERE ConversationID = {{0}};
-                END", f.Id);
-                        }
-                        catch { }
                     }
                 }
 
